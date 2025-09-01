@@ -1,15 +1,15 @@
+#![doc=include_str!("../README.md")]
 mod errors;
 pub use errors::{Accumulator, Error, Failure, Result};
-mod sync;
-pub use sync::Validate;
-
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
-}
+pub mod synch;
+pub use synch::{Validate, ValidateContext};
+mod wrapper;
+pub use wrapper::Valid;
+pub mod asynch;
 
 #[cfg(test)]
 mod tests {
-    use crate::sync::Validate;
+    use crate::synch::Validate;
 
     use super::*;
 
@@ -45,13 +45,7 @@ mod tests {
                 accum.add_failure("value is odd".into(), &["bvalue".into()]);
             }
 
-            accum.prefix.push("cs".into());
-            for (idx, c) in self.cs.iter().enumerate() {
-                accum.prefix.push(idx.into());
-                c.validate_inner(accum);
-                accum.prefix.pop();
-            }
-            accum.prefix.pop();
+            accum.validate_iter("cs", &self.cs);
 
             accum.len() - orig_len
         }

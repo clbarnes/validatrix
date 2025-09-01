@@ -10,5 +10,5 @@ serde = { version = "1.0.219", features = ["derive"] }
 serde_json = { version = "1.0.143", features = ["indexmap"] }
 
 [[bench]]
-name = "my_benchmark"
+name = "validate_benchmark"
 harness = false
