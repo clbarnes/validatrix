@@ -6,9 +6,13 @@ Validatrix contains no built-in validators, just traits and error types for your
 
 Designed for cases where:
 
-- validateable types are built up of other validateable types
+- possibly-valid types are built up of other possibly-valid types
 - there is additional schema-level validation
 - data is modelled as JSON-like, where sequences are ordered and maps' keys are stringy
+
+The `Display` implementation of `validatrix::Error` can list multiple validation errors,
+pointing to the location of the errors with [JSONPath](https://jsonpath.com/)-like syntax,
+although implementors can choose to fail fast instead.
 
 ## Usage
 
@@ -75,15 +79,25 @@ impl Validate for C {
     }
 }
 
+// all of the value fields here are even, and therefore valid
+let invalid = A {
+    avalue: 0,
+    b: B {
+        bvalue: 0,
+        cs: vec![C { cvalue: 0 }, C { cvalue: 0 }],
+    },
+};
+invalid.validate().unwrap();
+
 // all of the value fields are odd, and therefore invalid
-let valid = A {
+let invalid = A {
     avalue: 1,
     b: B {
         bvalue: 1,
         cs: vec![C { cvalue: 1 }, C { cvalue: 1 }],
     },
 };
-let err = valid.validate().unwrap_err();
+let err = invalid.validate().unwrap_err();
 let validation_report = format!("{err}");
 assert_eq!(validation_report, "
 Validation failure(s):
@@ -93,6 +107,12 @@ Validation failure(s):
    $.b.cs[1].cvalue: value is odd
 ".trim())
 ```
+
+There is also an asynchronous variant in the `validatrix::asynch` module.
+Additionally, there is `validatrix::Valid`,
+a wrapper type which can only be created by validating its inner value.
+Finally, there is `validatrix(::asynch)::ValidateContext`,
+which allows passing a reference to some external data as context for the validation.
 
 ## To do
 
