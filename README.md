@@ -156,3 +156,4 @@ JSONSchema-like validators tend not to be good at schema-level validation.
 - `Accumulator` could have a fail-fast mode
   - methods should return `Result`s (`Err` if fail-fast is `true`, otherwise `Ok`) so they can be `?` and propagate
   - this would cause weirdness in the `&mut self` methods which would then need to cede their failures to the returned errors
+- replace `String` in `Failure` with generic error
