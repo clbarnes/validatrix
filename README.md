@@ -21,18 +21,23 @@ use validatrix::{Validate, Accumulator, Valid};
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 struct A {
+    /// Must be even.
     avalue: u8,
+    /// Must be valid.
     b: B,
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 struct B {
+    /// Must be even.
     bvalue: u8,
+    /// All must be valid.
     cs: Vec<C>,
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 struct C {
+    /// Must be even.
     cvalue: u8,
 }
 
