@@ -58,11 +58,12 @@ fn make_struct(
 
 fn standard_struct() -> MyStruct {
     let mut rng = SmallRng::seed_from_u64(1991);
-    let s = make_struct(3, 10, 0.01, &mut rng);
+    let s = make_struct(3, 10, 0.5, &mut rng);
     println!("Struct with {} nodes, {} valid", s.count(), s.count_valid());
     s
 }
 
+/// For comparison, benchmark serializing to JSON.
 fn ser_benchmark(c: &mut Criterion) {
     let s = standard_struct();
     c.bench_function("serialize", |b| {
@@ -72,6 +73,7 @@ fn ser_benchmark(c: &mut Criterion) {
     });
 }
 
+/// For comparison, benchmark deserializing from JSON.
 fn de_benchmark(c: &mut Criterion) {
     let s = standard_struct();
     let json = serde_json::to_string(&s).unwrap();
@@ -82,6 +84,8 @@ fn de_benchmark(c: &mut Criterion) {
     });
 }
 
+/// Benchmark the validation process for a pretty large struct.
+/// More failures is slower, which is probably OK.
 fn validate_benchmark(c: &mut Criterion) {
     let s = standard_struct();
     c.bench_function("validate", |b| {

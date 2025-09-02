@@ -19,7 +19,7 @@ although implementors can choose to fail fast instead.
 ```rust
 use validatrix::{Validate, Accumulator, Valid};
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct A {
     /// Must be even.
     avalue: u8,
@@ -27,7 +27,7 @@ struct A {
     b: B,
 }
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct B {
     /// Must be even.
     bvalue: u8,
@@ -35,7 +35,7 @@ struct B {
     cs: Vec<C>,
 }
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct C {
     /// Must be even.
     cvalue: u8,
@@ -53,7 +53,7 @@ impl Validate for A {
             accum.add_failure("value is odd".into(), &["avalue".into()]);
         }
 
-        // Fields implementing validatrix::Validate can be accumulated too.
+        // Fields implementing validatrix::Validate can have validation errors accumulated too.
         accum.prefix.push("b".into());
         self.b.validate_inner(accum);
         // Make sure to pop the prefix even if you return early!
@@ -117,16 +117,22 @@ Validation failure(s):
    $.b.cs[1].cvalue: value is odd
 ".trim());
 
+// the `Valid` wrapper type enforces validity
+let valid_wrapped = Valid::try_new(valid.clone()).expect("is valid");
+assert!(Valid::try_new(invalid.clone()).is_err());
+// `Valid` implements AsRef, Borrow, and Deref for the contained type
+
 #[cfg(feature = "serde")]
 {
-    // the `Valid` wrapper type enforces validity,
-    // through deserialization or `try_new()`
-    let valid_wrapped: Valid<A> = serde_json::from_str(
+    // You can also deserialize directly into a Valid;
+    // validation errors are raised by serde.
+    let valid_wrapped_deser: Valid<A> = serde_json::from_str(
         &serde_json::to_string(&valid).unwrap()
     ).unwrap();
 
-    let s = serde_json::to_string(&invalid).unwrap();
-    assert!(serde_json::from_str::<Valid<A>>(&s).is_err())
+    // serialization is handled transparently
+    let invalid_str = serde_json::to_string(&invalid).unwrap();
+    assert!(serde_json::from_str::<Valid<A>>(&invalid_str).is_err());
 }
 
 ```
@@ -154,6 +160,6 @@ JSONSchema-like validators tend not to be good at schema-level validation.
 - use `Cow<str>` (or alternative like [hipstr](https://crates.io/crates/hipstr), [ecow](https://crates.io/crates/ecow) etc.) for messages
 - investigate whether RAII can be used instead of pushing and popping accumulator prefixes
 - `Accumulator` could have a fail-fast mode
-  - methods should return `Result`s (`Err` if fail-fast is `true`, otherwise `Ok`) so they can be `?` and propagate
+  - methods would return `Result`s (`Err` if fail-fast is `true`, otherwise `Ok`) so they can be `?`'d and propagate
   - this would cause weirdness in the `&mut self` methods which would then need to cede their failures to the returned errors
 - replace `String` in `Failure` with generic error
