@@ -80,14 +80,14 @@ impl Validate for C {
 }
 
 // all of the value fields here are even, and therefore valid
-let invalid = A {
+let valid = A {
     avalue: 0,
     b: B {
         bvalue: 0,
         cs: vec![C { cvalue: 0 }, C { cvalue: 0 }],
     },
 };
-invalid.validate().unwrap();
+valid.validate().unwrap();
 
 // all of the value fields are odd, and therefore invalid
 let invalid = A {
@@ -106,6 +106,16 @@ Validation failure(s):
    $.b.cs[0].cvalue: value is odd
    $.b.cs[1].cvalue: value is odd
 ".trim())
+
+// the `Valid` wrapper type enforces validity,
+// through deserialization or `try_new()`
+let valid_wrapped: Valid<A> = serde_json::from_str(
+    &serde_json::to_string(&valid).unwrap()
+).unwrap();
+
+assert!(serde_json::from_str(
+    &serde_json::to_string(&invalid).unwrap()
+).is_err())
 ```
 
 There is also an asynchronous variant in the `validatrix::asynch` module.
