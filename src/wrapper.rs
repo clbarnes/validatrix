@@ -4,8 +4,19 @@ use crate::{Validate, ValidateContext};
 
 /// Wrapper type containing a value which must have been validated.
 #[derive(Debug)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize), serde(transparent))]
 pub struct Valid<T>(T);
+
+// Manually implemented to save depending on the derive feature of serde
+#[cfg(feature = "serde")]
+impl<T: serde::Serialize> serde::Serialize for Valid<T> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        // don't need to validate here: it's in the wrapper, it's already valid
+        self.0.serialize(serializer)
+    }
+}
 
 #[cfg(feature = "serde")]
 impl<'de, T: serde::de::Deserialize<'de> + Validate> serde::de::Deserialize<'de> for Valid<T> {
