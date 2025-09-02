@@ -6,6 +6,26 @@ use crate::Validate;
 #[derive(Debug)]
 pub struct Valid<T>(T);
 
+#[cfg(feature="serde")]
+impl<T: serde::Serialize + Validate> serde::Serialize for Valid<T> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer {
+        self.0.serialize(serializer)
+    }
+}
+
+#[cfg(feature="serde")]
+impl<'de, T: serde::de::Deserialize<'de> + Validate> serde::de::Deserialize<'de> for Valid<T> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = T::deserialize(deserializer)?;
+        Self::try_new(value).map_err(serde::de::Error::custom)
+    }
+}
+
 impl<T> Valid<T> {
     /// Borrow a reference to the contained valid value.
     pub fn inner(&self) -> &T {

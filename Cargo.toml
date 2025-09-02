@@ -12,3 +12,9 @@ serde_json = { version = "1.0.143", features = ["indexmap"] }
 [[bench]]
 name = "validate_benchmark"
 harness = false
+
+[dependencies]
+serde = { version = "1", optional = true }
+
+[features]
+serde = ["dep:serde"]
