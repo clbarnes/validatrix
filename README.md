@@ -21,7 +21,7 @@ use validatrix::{Validate, Accumulator, Valid};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct A {
-    /// Must be even.
+    /// Must not be divisible by 3.
     avalue: u8,
     /// Must be valid.
     b: B,
@@ -29,7 +29,7 @@ struct A {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct B {
-    /// Must be even.
+    /// Must not be divisible by 5.
     bvalue: u8,
     /// All must be valid.
     cs: Vec<C>,
@@ -37,7 +37,7 @@ struct B {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct C {
-    /// Must be even.
+    /// Must not be divisible by 3 and 5.
     cvalue: u8,
 }
 
@@ -47,10 +47,10 @@ impl Validate for A {
     // But you can return early if you prefer.
     fn validate_inner(&self, accum: &mut Accumulator) -> usize {
         let orig = accum.len();
-        if self.avalue % 2 != 0 {
+        if self.avalue % 3 == 0 {
             // Each failure is added with a context: the name of the field
             // (or index of a sequence) which failed.
-            accum.add_failure("value is odd".into(), &["avalue".into()]);
+            accum.add_failure("fizz".into(), &["avalue".into()]);
         }
 
         // Fields implementing validatrix::Validate can have validation errors accumulated too.
@@ -67,8 +67,8 @@ impl Validate for A {
 impl Validate for B {
     fn validate_inner(&self, accum: &mut Accumulator) -> usize {
         let orig_len = accum.len();
-        if self.bvalue % 2 != 0 {
-            accum.add_failure("value is odd".into(), &["bvalue".into()]);
+        if self.bvalue % 5 == 0 {
+            accum.add_failure("buzz".into(), &["bvalue".into()]);
         }
 
         // Helper method for validating a sequence of validatrix::Validate structs
@@ -82,39 +82,39 @@ impl Validate for B {
 impl Validate for C {
     fn validate_inner(&self, accum: &mut Accumulator) -> usize {
         let orig_len = accum.len();
-        if self.cvalue % 2 != 0 {
-            accum.add_failure("value is odd".into(), &["cvalue".into()]);
+        if (self.cvalue % 3 * self.cvalue % 5) == 0 {
+            accum.add_failure("fizzbuzz".into(), &["cvalue".into()]);
         }
         accum.len() - orig_len
     }
 }
 
-// all of the value fields here are even, and therefore valid
+// valid
 let valid = A {
-    avalue: 0,
-    b: B {
-        bvalue: 0,
-        cs: vec![C { cvalue: 0 }, C { cvalue: 0 }],
-    },
-};
-valid.validate().unwrap();
-
-// all of the value fields are odd, and therefore invalid
-let invalid = A {
     avalue: 1,
     b: B {
         bvalue: 1,
         cs: vec![C { cvalue: 1 }, C { cvalue: 1 }],
     },
 };
+valid.validate().unwrap();
+
+// all of the value fields are fizz/buzz, and therefore invalid
+let invalid = A {
+    avalue: 3,
+    b: B {
+        bvalue: 5,
+        cs: vec![C { cvalue: 15 }, C { cvalue: 30 }],
+    },
+};
 let err = invalid.validate().unwrap_err();
 let validation_report = format!("{err}");
 assert_eq!(validation_report, "
 Validation failure(s):
-   $.avalue: value is odd
-   $.b.bvalue: value is odd
-   $.b.cs[0].cvalue: value is odd
-   $.b.cs[1].cvalue: value is odd
+   $.avalue: fizz
+   $.b.bvalue: buzz
+   $.b.cs[0].cvalue: fizzbuzz
+   $.b.cs[1].cvalue: fizzbuzz
 ".trim());
 
 // the `Valid` wrapper type enforces validity
