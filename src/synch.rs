@@ -20,6 +20,6 @@ pub trait ValidateContext {
         self.validate_inner(context, &mut accum);
         accum.into()
     }
-    
+
     fn validate_inner(&self, context: &Self::Context, accum: &mut Accumulator) -> usize;
 }

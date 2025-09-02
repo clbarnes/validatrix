@@ -43,7 +43,9 @@ impl From<Accumulator> for Result<(), Error> {
 
 #[derive(Debug, Default)]
 pub struct Accumulator {
+    /// This prefix is applied to any failures added to the accumulator.
     pub prefix: Vec<Key>,
+    pub fail_fast: bool,
     failures: Vec<Failure>,
 }
 
@@ -60,7 +62,7 @@ impl Accumulator {
     }
 
     /// Ingest a whole error response into this accumulator, under the given keys.
-    /// 
+    ///
     /// If a failure was added, returns `true`.
     pub fn accumulate_err(&mut self, res: Result<(), Error>, keys: &[Key]) -> bool {
         let Err(e) = res else {

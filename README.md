@@ -17,11 +17,23 @@ although implementors can choose to fail fast instead.
 ## Usage
 
 ```rust
-use validatrix::{Validate, Accumulator};
+use validatrix::{Validate, Accumulator, Valid};
 
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
 struct A {
     avalue: u8,
     b: B,
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+struct B {
+    bvalue: u8,
+    cs: Vec<C>,
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+struct C {
+    cvalue: u8,
 }
 
 // Implement `validatrix::Validate` on your structs.
@@ -39,16 +51,12 @@ impl Validate for A {
         // Fields implementing validatrix::Validate can be accumulated too.
         accum.prefix.push("b".into());
         self.b.validate_inner(accum);
+        // Make sure to pop the prefix even if you return early!
         accum.prefix.pop();
 
         // Return the number of new errors in this call
         accum.len() - orig
     }
-}
-
-struct B {
-    bvalue: u8,
-    cs: Vec<C>,
 }
 
 impl Validate for B {
@@ -65,9 +73,6 @@ impl Validate for B {
     }
 }
 
-struct C {
-    cvalue: u8,
-}
 
 impl Validate for C {
     fn validate_inner(&self, accum: &mut Accumulator) -> usize {
@@ -105,26 +110,44 @@ Validation failure(s):
    $.b.bvalue: value is odd
    $.b.cs[0].cvalue: value is odd
    $.b.cs[1].cvalue: value is odd
-".trim())
+".trim());
 
-// the `Valid` wrapper type enforces validity,
-// through deserialization or `try_new()`
-let valid_wrapped: Valid<A> = serde_json::from_str(
-    &serde_json::to_string(&valid).unwrap()
-).unwrap();
+#[cfg(feature = "serde")]
+{
+    // the `Valid` wrapper type enforces validity,
+    // through deserialization or `try_new()`
+    let valid_wrapped: Valid<A> = serde_json::from_str(
+        &serde_json::to_string(&valid).unwrap()
+    ).unwrap();
 
-assert!(serde_json::from_str(
-    &serde_json::to_string(&invalid).unwrap()
-).is_err())
+    let s = serde_json::to_string(&invalid).unwrap();
+    assert!(serde_json::from_str::<Valid<A>>(&s).is_err())
+}
+
 ```
 
 There is also an asynchronous variant in the `validatrix::asynch` module.
-Additionally, there is `validatrix::Valid`,
-a wrapper type which can only be created by validating its inner value.
-Finally, there is `validatrix(::asynch)::ValidateContext`,
+See also `validatrix(::asynch)::ValidateContext`,
 which allows passing a reference to some external data as context for the validation.
+
+## Why not
+
+- [validator](https://crates.io/crates/validator)
+- [validators](https://crates.io/crates/validators)
+- [serde_valid](https://crates.io/crates/serde_valid)
+
+Other validation crates have focused on providing validator functions and proc macros to decorate types.
+I found those validators are often trivial implement yourself,
+the DSLs for decorating fields just look worse than regular rust code,
+and composing custom and built-in validators behaved in unclear ways.
+
+JSONSchema-like validators tend not to be good at schema-level validation.
 
 ## To do
 
-- ~~use smallvec to decrease allocations~~ _Doesn't really help_
+- ~~use [smallvec](https://crates.io/crates/smallvec) to decrease allocations~~ _Doesn't really help_
+- use `Cow<str>` (or alternative like [hipstr](https://crates.io/crates/hipstr), [ecow](https://crates.io/crates/ecow) etc.) for messages
 - investigate whether RAII can be used instead of pushing and popping accumulator prefixes
+- `Accumulator` could have a fail-fast mode
+  - methods should return `Result`s (`Err` if fail-fast is `true`, otherwise `Ok`) so they can be `?` and propagate
+  - this would cause weirdness in the `&mut self` methods which would then need to cede their failures to the returned errors
