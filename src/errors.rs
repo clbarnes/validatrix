@@ -42,16 +42,16 @@ impl From<Accumulator> for Result<(), Error> {
 }
 
 /// Type used to build up a list of validation failures.
-/// 
+///
 /// When validating fields of a struct while validating that struct,
 /// push the field's name (or index in a sequence)
 /// onto the `prefix` member of the accumulator
 /// before passing it in to the validator.
 /// This allows nested fields to report where the failure happened.
-/// 
+///
 /// ```
 /// use validatrix::Accumulator;
-/// 
+///
 /// let mut accum = Accumulator::default();
 /// accum.prefix.push("some_field".into());
 /// // ... validate `some_field` using this accumulator
