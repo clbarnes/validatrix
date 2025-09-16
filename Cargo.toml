@@ -2,6 +2,11 @@
 name = "validatrix"
 version = "0.1.0"
 edition = "2024"
+description = "Composable validation library"
+license = "MIT"
+repository = "https://github.com/clbarnes/validatrix"
+keywords = ["validation", "serde"]
+categories = ["data-structures", "encoding", "parsing"]
 
 [dev-dependencies]
 criterion = "0.7.0"
