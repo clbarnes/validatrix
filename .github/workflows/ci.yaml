@@ -25,19 +25,29 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-      - uses: Swatinem/rust-cache@v1
+      - uses: Swatinem/rust-cache@v2
       - run: cargo test --all-features
 
-  deploy:
+  bench:
     runs-on: ubuntu-24.04
-    needs: [lint, test]
-    if: github.event_name == 'push' && contains(github.ref, 'refs/tags/rs-v')
     steps:
       - uses: actions/checkout@v3
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-      - uses: Swatinem/rust-cache@v1
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo bench --all-features
+
+  deploy:
+    runs-on: ubuntu-24.04
+    needs: [lint, test]
+    if: github.event_name == 'push' && contains(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@v2
       - run: cargo login ${CRATES_IO_TOKEN}
         env:
           CRATES_IO_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
