@@ -154,7 +154,13 @@ and composing custom and built-in validators behaved in unclear ways.
 
 JSONSchema-like validators tend not to be good at schema-level validation.
 
-## To do
+## Development
+
+Make releases using [cargo-release](https://github.com/crate-ci/cargo-release).
+
+Use [prek](https://github.com/j178/prek) to manage pre-commit hooks.
+
+### To do
 
 - ~~use [smallvec](https://crates.io/crates/smallvec) to decrease allocations~~ _Doesn't really help_
 - use `Cow<str>` (or alternative like [hipstr](https://crates.io/crates/hipstr), [ecow](https://crates.io/crates/ecow) etc.) for messages
