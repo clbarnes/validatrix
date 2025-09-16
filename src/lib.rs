@@ -45,7 +45,9 @@ mod tests {
                 accum.add_failure("value is odd".into(), &["bvalue".into()]);
             }
 
-            accum.validate_iter("cs", &self.cs);
+            accum.prefix.push("cs".into());
+            accum.validate_iter(&self.cs);
+            accum.prefix.pop();
 
             accum.len() - orig_len
         }

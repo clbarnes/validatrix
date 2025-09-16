@@ -90,20 +90,20 @@ impl Accumulator {
     }
 
     /// If a failure was added, returns > 0
-    pub fn validate_iter<'a, V: Validate + 'a, I: IntoIterator<Item = &'a V>, K: Into<Key>>(
+    pub fn validate_iter<'a, V: Validate + 'a, I: IntoIterator<Item = &'a V>>(
         &mut self,
-        key: K,
         items: I,
     ) -> usize {
-        let orig = self.len();
-        self.prefix.push(key.into());
-        for (idx, item) in items.into_iter().enumerate() {
-            self.prefix.push(idx.into());
-            item.validate_inner(self);
-            self.prefix.pop();
-        }
-        self.prefix.pop();
-        self.len() - orig
+        items
+            .into_iter()
+            .enumerate()
+            .map(|(idx, item)| {
+                self.prefix.push(idx.into());
+                let out = item.validate_inner(self);
+                self.prefix.pop();
+                out
+            })
+            .sum()
     }
 
     pub fn len(&self) -> usize {

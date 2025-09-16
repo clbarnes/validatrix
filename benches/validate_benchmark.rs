@@ -28,12 +28,15 @@ impl MyStruct {
 
 impl Validate for MyStruct {
     fn validate_inner(&self, accum: &mut validatrix::Accumulator) -> usize {
-        let orig = accum.len();
+        let mut total = 0;
         if !self.is_valid {
             accum.add_failure("not valid".into(), &["is_valid".into()]);
+            total += 1;
         }
-        accum.validate_iter("children", &self.children);
-        accum.len() - orig
+        accum.prefix.push("children".into());
+        total += accum.validate_iter(&self.children);
+        accum.prefix.pop();
+        total
     }
 }
 

@@ -66,26 +66,30 @@ impl Validate for A {
 
 impl Validate for B {
     fn validate_inner(&self, accum: &mut Accumulator) -> usize {
-        let orig_len = accum.len();
+        let mut total = 0;
         if self.bvalue % 5 == 0 {
             accum.add_failure("buzz".into(), &["bvalue".into()]);
+            total += 1;
         }
 
         // Helper method for validating a sequence of validatrix::Validate structs
-        accum.validate_iter("cs", &self.cs);
+        accum.prefix.push("cs".into());
+        total += accum.validate_iter(&self.cs);
+        accum.prefix.pop();
 
-        accum.len() - orig_len
+        total
     }
 }
 
 
 impl Validate for C {
     fn validate_inner(&self, accum: &mut Accumulator) -> usize {
-        let orig_len = accum.len();
+        let mut total = 0;
         if (self.cvalue % 3 * self.cvalue % 5) == 0 {
             accum.add_failure("fizzbuzz".into(), &["cvalue".into()]);
+            total += 1;
         }
-        accum.len() - orig_len
+        total
     }
 }
 
