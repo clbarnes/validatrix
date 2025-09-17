@@ -6,6 +6,7 @@ pub trait Validate {
     ///
     /// Should not be called inside other validators;
     /// use [Validate::validate_inner] instead.
+    /// Should not be overridden by implementors.
     fn validate(&self) -> crate::Result {
         let mut accum = Default::default();
         self.validate_inner(&mut accum);
@@ -16,7 +17,7 @@ pub trait Validate {
     ///
     /// Validators of containing types should call this;
     /// end users probably want [Validate::validate] instead.
-    fn validate_inner(&self, accum: &mut Accumulator) -> usize;
+    fn validate_inner(&self, accum: &mut Accumulator);
 }
 
 /// Trait for synchronous validation where some external data or context is required.
@@ -28,6 +29,7 @@ pub trait ValidateContext {
     ///
     /// Should not be called inside other validators;
     /// use [ValidateContext::validate_inner] instead.
+    /// Should not be overridden by implementors.
     fn validate(&self, context: &Self::Context) -> crate::Result {
         let mut accum = Default::default();
         self.validate_inner(context, &mut accum);
@@ -38,5 +40,5 @@ pub trait ValidateContext {
     ///
     /// Validators of containing types should call this;
     /// end users probably want [ValidateContext::validate] instead.
-    fn validate_inner(&self, context: &Self::Context, accum: &mut Accumulator) -> usize;
+    fn validate_inner(&self, context: &Self::Context, accum: &mut Accumulator);
 }

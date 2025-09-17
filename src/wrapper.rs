@@ -61,6 +61,8 @@ impl<T> Borrow<T> for Valid<T> {
     }
 }
 
+// N.B. can't use TryFrom because of the blanket implementation of TryFrom for From;
+// too generic.
 impl<T: Validate> Valid<T> {
     /// Validate the inner value and return the wrapped form.
     pub fn try_new(inner: T) -> crate::Result<Self> {
@@ -86,12 +88,9 @@ mod tests {
     }
 
     impl Validate for MyStruct {
-        fn validate_inner(&self, accum: &mut crate::Accumulator) -> usize {
-            if self.is_valid {
-                0
-            } else {
-                accum.add_failure("struct marked invalid".into(), &["is_valid".into()]);
-                1
+        fn validate_inner(&self, accum: &mut crate::Accumulator) {
+            if !self.is_valid {
+                accum.add_failure_at("is_valid", "struct marked invalid");
             }
         }
     }

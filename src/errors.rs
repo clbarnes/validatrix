@@ -53,63 +53,78 @@ impl From<Accumulator> for Result<(), Error> {
 /// use validatrix::Accumulator;
 ///
 /// let mut accum = Accumulator::default();
-/// accum.prefix.push("some_field".into());
-/// // ... validate `some_field` using this accumulator
-/// accum.prefix.pop();
+/// accum.with_key("some_field", |a| if true == false { a.add_failure("pigs have flown") })
 /// ```
 #[derive(Debug, Default)]
 pub struct Accumulator {
     /// This prefix is applied to any failures added to the accumulator.
-    pub prefix: Vec<Key>,
+    prefix: Vec<Key>,
     failures: Vec<Failure>,
 }
 
 impl Accumulator {
-    /// Add one extra failure to this accumulator, under the given keys.
-    pub fn add_failure(&mut self, mut failure: Failure, keys: &[Key]) {
-        for k in keys.iter() {
-            failure.key.push(*k);
-        }
-        for k in self.prefix.iter().rev() {
-            failure.key.push(*k);
-        }
-        self.failures.push(failure);
+    /// Add an extra failure to this accumulator.
+    pub fn add_failure(&mut self, message: impl Into<String>) {
+        self.failures.push(Failure::new(&self.prefix, message))
     }
 
-    /// Ingest a whole error response into this accumulator, under the given keys.
+    /// Accumulate an extra failure at the given key.
+    pub fn add_failure_at(&mut self, prefix: impl Into<Key>, message: impl Into<String>) {
+        self.with_key(prefix, |a| a.add_failure(message))
+    }
+
+    /// Accumulate any validation errors for a [Validate] field with key `field`.
+    pub fn validate_member_at(&mut self, field: impl Into<Key>, member: &impl Validate) {
+        self.with_key(field, |a| member.validate_inner(a))
+    }
+
+    /// Perform manual validation inside the given closure for a member with the given prefix.
     ///
-    /// If a failure was added, returns `true`.
-    pub fn accumulate_err(&mut self, res: Result<(), Error>, keys: &[Key]) -> bool {
-        let Err(e) = res else {
-            return false;
-        };
-        for f in e.0 {
-            self.add_failure(f, keys);
+    /// The closure takes an accumulator as an argument,
+    /// which will be this accumulator with the added prefix.
+    pub fn with_key(&mut self, prefix: impl Into<Key>, f: impl FnOnce(&mut Self)) {
+        self.prefix.push(prefix.into());
+        f(self);
+        self.prefix.pop();
+    }
+
+    /// Convenience method for [Accumulator::with_key]-like behaviour at multiple keys' depth.
+    pub fn with_keys(&mut self, prefixes: &[Key], f: impl FnOnce(&mut Self)) {
+        let len = prefixes.len();
+        for p in prefixes {
+            self.prefix.push(*p);
         }
-        true
+        f(self);
+        for _ in 0..len {
+            self.prefix.pop();
+        }
     }
 
-    /// If a failure was added, returns > 0
-    pub fn validate_iter<'a, V: Validate + 'a, I: IntoIterator<Item = &'a V>>(
+    /// Iterate over a collection of [Validate]-able items,
+    /// validating them all in turn.
+    /// As this tracks the items' index in the iterable,
+    /// the whole collection should be passed rather than a filtered version.
+    pub fn validate_iter<'a, V: Validate + 'a, I: IntoIterator<Item = &'a V>>(&mut self, items: I) {
+        items.into_iter().enumerate().for_each(|(idx, item)| {
+            self.validate_member_at(idx, item);
+        })
+    }
+
+    /// Convenience method to do [Accumulator::validate_iter] for a given key.
+    pub fn validate_iter_at<'a, V: Validate + 'a, I: IntoIterator<Item = &'a V>>(
         &mut self,
+        prefix: impl Into<Key>,
         items: I,
-    ) -> usize {
-        items
-            .into_iter()
-            .enumerate()
-            .map(|(idx, item)| {
-                self.prefix.push(idx.into());
-                let out = item.validate_inner(self);
-                self.prefix.pop();
-                out
-            })
-            .sum()
+    ) {
+        self.with_key(prefix, |a| a.validate_iter(items));
     }
 
+    /// Number of failures logged by this accumulator.
     pub fn len(&self) -> usize {
         self.failures.len()
     }
 
+    /// Whether this accumulator has 0 failures.
     pub fn is_empty(&self) -> bool {
         self.failures.is_empty()
     }
@@ -119,15 +134,17 @@ impl Accumulator {
 /// Used to build informative error messages for [Error].
 #[derive(Debug)]
 pub struct Failure {
-    key: Vec<Key>,
+    pub(crate) key: Vec<Key>,
     // todo: replace with Cow?
-    message: String,
+    pub(crate) message: String,
 }
 
 impl Failure {
-    pub fn with_key(mut self, key: Key) -> Self {
-        self.key.push(key);
-        self
+    pub fn new(path: &[Key], msg: impl Into<String>) -> Self {
+        Self {
+            key: path.to_vec(),
+            message: msg.into(),
+        }
     }
 }
 
@@ -143,7 +160,7 @@ impl<T: Into<String>> From<T> for Failure {
 impl Display for Failure {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_char('$')?;
-        for c in self.key.iter().rev() {
+        for c in self.key.iter() {
             match c {
                 Key::Index(n) => f.write_fmt(format_args!("[{n}]"))?,
                 Key::Field(s) => {

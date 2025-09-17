@@ -5,6 +5,7 @@ pub mod synch;
 pub use synch::{Validate, ValidateContext};
 mod wrapper;
 pub use wrapper::Valid;
+
 pub mod asynch;
 
 #[cfg(test)]
@@ -19,17 +20,12 @@ mod tests {
     }
 
     impl Validate for A {
-        fn validate_inner(&self, accum: &mut errors::Accumulator) -> usize {
-            let orig = accum.len();
+        fn validate_inner(&self, accum: &mut errors::Accumulator) {
             if self.avalue % 2 != 0 {
-                accum.add_failure("value is odd".into(), &["avalue".into()]);
+                accum.add_failure_at("avalue", "value is odd");
             }
 
-            accum.prefix.push("b".into());
-            self.b.validate_inner(accum);
-            accum.prefix.pop();
-
-            accum.len() - orig
+            accum.validate_member_at("b", &self.b);
         }
     }
 
@@ -39,17 +35,12 @@ mod tests {
     }
 
     impl Validate for B {
-        fn validate_inner(&self, accum: &mut errors::Accumulator) -> usize {
-            let orig_len = accum.len();
+        fn validate_inner(&self, accum: &mut errors::Accumulator) {
             if self.bvalue % 2 != 0 {
-                accum.add_failure("value is odd".into(), &["bvalue".into()]);
+                accum.add_failure_at("bvalue", "value is odd");
             }
 
-            accum.prefix.push("cs".into());
-            accum.validate_iter(&self.cs);
-            accum.prefix.pop();
-
-            accum.len() - orig_len
+            accum.validate_iter_at("cs", &self.cs);
         }
     }
 
@@ -58,12 +49,10 @@ mod tests {
     }
 
     impl Validate for C {
-        fn validate_inner(&self, accum: &mut errors::Accumulator) -> usize {
-            let orig_len = accum.len();
+        fn validate_inner(&self, accum: &mut errors::Accumulator) {
             if self.cvalue % 2 != 0 {
-                accum.add_failure("value is odd".into(), &["cvalue".into()]);
+                accum.add_failure_at("cvalue", "value is odd");
             }
-            accum.len() - orig_len
         }
     }
 

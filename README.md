@@ -45,51 +45,36 @@ struct C {
 impl Validate for A {
     // `Accumulator` allows you to continue looking for validation errors after the first.
     // But you can return early if you prefer.
-    fn validate_inner(&self, accum: &mut Accumulator) -> usize {
-        let orig = accum.len();
+    fn validate_inner(&self, accum: &mut Accumulator) {
         if self.avalue % 3 == 0 {
             // Each failure is added with a context: the name of the field
             // (or index of a sequence) which failed.
-            accum.add_failure("fizz".into(), &["avalue".into()]);
+            accum.add_failure_at("avalue", "fizz");
         }
 
         // Fields implementing validatrix::Validate can have validation errors accumulated too.
-        accum.prefix.push("b".into());
-        self.b.validate_inner(accum);
-        // Make sure to pop the prefix even if you return early!
-        accum.prefix.pop();
-
-        // Return the number of new errors in this call
-        accum.len() - orig
+        accum.validate_member_at("b", &self.b);
     }
 }
 
 impl Validate for B {
-    fn validate_inner(&self, accum: &mut Accumulator) -> usize {
-        let mut total = 0;
+    fn validate_inner(&self, accum: &mut Accumulator) {
         if self.bvalue % 5 == 0 {
-            accum.add_failure("buzz".into(), &["bvalue".into()]);
-            total += 1;
+            // You can also manually do validation within a prefix context
+            accum.with_key("bvalue", |a| a.add_failure("buzz"));
         }
 
         // Helper method for validating a sequence of validatrix::Validate structs
-        accum.prefix.push("cs".into());
-        total += accum.validate_iter(&self.cs);
-        accum.prefix.pop();
-
-        total
+        accum.validate_iter_at("cs", &self.cs);
     }
 }
 
 
 impl Validate for C {
-    fn validate_inner(&self, accum: &mut Accumulator) -> usize {
-        let mut total = 0;
+    fn validate_inner(&self, accum: &mut Accumulator) {
         if (self.cvalue % 3 * self.cvalue % 5) == 0 {
-            accum.add_failure("fizzbuzz".into(), &["cvalue".into()]);
-            total += 1;
+            accum.add_failure_at("cvalue", "fizzbuzz")
         }
-        total
     }
 }
 
