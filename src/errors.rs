@@ -53,7 +53,7 @@ impl From<Accumulator> for Result<(), Error> {
 /// use validatrix::Accumulator;
 ///
 /// fn accumulate(accum: &mut Accumulator) {
-///     accum.with_key("some_field", |a| if true == false { a.add_failure("pigs have flown") })
+///     accum.with_key("some_field", |a| if true == false { a.add_failure("pigs have flown") });
 ///
 ///     // equivalent to the above
 ///     if true == false {
