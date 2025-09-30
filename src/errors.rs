@@ -52,14 +52,29 @@ impl From<Accumulator> for Result<(), Error> {
 /// ```
 /// use validatrix::Accumulator;
 ///
-/// let mut accum = Accumulator::default();
-/// accum.with_key("some_field", |a| if true == false { a.add_failure("pigs have flown") })
+/// fn accumulate(accum: &mut Accumulator) {
+///     accum.with_key("some_field", |a| if true == false { a.add_failure("pigs have flown") })
+///
+///     // equivalent to the above
+///     if true == false {
+///         accum.add_failure_at("some_field", "hell has frozen over");
+///     }
+/// }
 /// ```
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Accumulator {
     /// This prefix is applied to any failures added to the accumulator.
     prefix: Vec<Key>,
     failures: Vec<Failure>,
+}
+
+impl Accumulator {
+    pub(crate) fn new() -> Self {
+        Self {
+            prefix: Default::default(),
+            failures: Default::default(),
+        }
+    }
 }
 
 impl Accumulator {

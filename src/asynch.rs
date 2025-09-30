@@ -9,7 +9,7 @@ pub trait Validate {
     /// use [Validate::validate_inner] instead.
     /// Should not be overridden by implementors.
     async fn validate(&self) -> crate::Result {
-        let mut accum = Default::default();
+        let mut accum = Accumulator::new();
         self.validate_inner(&mut accum).await;
         accum.into()
     }
@@ -32,7 +32,7 @@ pub trait ValidateContext {
     /// Should not be called inside other validators;
     /// use [ValidateContext::validate_inner] instead.
     async fn validate(&self, context: &Self::Context) -> crate::Result {
-        let mut accum = Default::default();
+        let mut accum = Accumulator::new();
         self.validate_inner(context, &mut accum).await;
         accum.into()
     }

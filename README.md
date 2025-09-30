@@ -152,7 +152,7 @@ Use [prek](https://github.com/j178/prek) to manage pre-commit hooks.
 ### To do
 
 - use `Cow<str>` (or alternative like [hipstr](https://crates.io/crates/hipstr), [ecow](https://crates.io/crates/ecow) etc.) for `Failure::message`;
-    alternatively, use `Box<dyn Error>` (but then people have to write their own validation errors, although `String`s would still work)
+  alternatively, use `Box<dyn Error>` (but then people have to write their own validation errors, although `String`s would still work)
 - `Accumulator` could have a fail-fast mode
   - could cap the number of errors at a given value, which might be 1
   - methods would return `Result`s (`Err` if fail-fast is `true`, otherwise `Ok`) so they can be `?`'d and propagate
