@@ -151,10 +151,10 @@ Use [prek](https://github.com/j178/prek) to manage pre-commit hooks.
 
 ### To do
 
-- ~~use [smallvec](https://crates.io/crates/smallvec) to decrease allocations~~ _Doesn't really help_
-- use `Cow<str>` (or alternative like [hipstr](https://crates.io/crates/hipstr), [ecow](https://crates.io/crates/ecow) etc.) for messages
-- investigate whether RAII can be used instead of pushing and popping accumulator prefixes
+- use `Cow<str>` (or alternative like [hipstr](https://crates.io/crates/hipstr), [ecow](https://crates.io/crates/ecow) etc.) for `Failure::message`;
+    alternatively, use `Box<dyn Error>` (but then people have to write their own validation errors, although `String`s would still work)
 - `Accumulator` could have a fail-fast mode
+  - could cap the number of errors at a given value, which might be 1
   - methods would return `Result`s (`Err` if fail-fast is `true`, otherwise `Ok`) so they can be `?`'d and propagate
   - this would cause weirdness in the `&mut self` methods which would then need to cede their failures to the returned errors
-- replace `String` in `Failure` with generic error
+- `Key::Field` could use a `Cow` so that custom field names can be used e.g. for maps (or a third variant like `Key::MapKey(String)`)
