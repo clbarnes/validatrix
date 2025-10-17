@@ -149,6 +149,11 @@ Make releases using [cargo-release](https://github.com/crate-ci/cargo-release).
 
 Use [prek](https://github.com/j178/prek) to manage pre-commit hooks.
 
+### MSRV
+
+`validatrix` should run on the rust version specified in `Cargo.toml`.
+However, a more recent version may be required by certain development dependencies.
+
 ### To do
 
 - use `Cow<str>` (or alternative like [hipstr](https://crates.io/crates/hipstr), [ecow](https://crates.io/crates/ecow) etc.) for `Failure::message`;
