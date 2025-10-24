@@ -1,5 +1,5 @@
-use criterion::{Criterion, criterion_group, criterion_main};
-use rand::{SeedableRng, rngs::SmallRng};
+use criterion::{criterion_group, criterion_main, Criterion};
+use rand::{rngs::SmallRng, SeedableRng};
 use serde::{Deserialize, Serialize};
 use std::hint::black_box;
 use validatrix::Validate;
