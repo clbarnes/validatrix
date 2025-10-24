@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Make `Key` public
 - Added a changelog
 - Added SemVer checks to CI
 - Added MSRV checks to CI
