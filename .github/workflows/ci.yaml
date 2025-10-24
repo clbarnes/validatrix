@@ -6,6 +6,20 @@ defaults:
     shell: bash
 
 jobs:
+  build:
+    strategy:
+      matrix:
+        toolchain: ["stable", "1.78", "beta", "nightly"]
+        features: ['--features ""', "--all-features", "--no-default-features"]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.toolchain }}
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build ${{ matrix.features }}
+
   lint:
     runs-on: ubuntu-24.04
     steps:
@@ -32,16 +46,3 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo bench --all-features
-
-  deploy:
-    runs-on: ubuntu-24.04
-    needs: [lint, test]
-    if: github.event_name == 'push' && contains(github.ref, 'refs/tags/v')
-    steps:
-      - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo login ${CRATES_IO_TOKEN}
-        env:
-          CRATES_IO_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
-      - run: cargo publish
