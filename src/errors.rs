@@ -94,7 +94,12 @@ impl Accumulator {
     }
 
     /// Like [Self::validate_member_at], but for a [crate::ValidateContext] field with the given context.
-    pub fn validate_member_at_ctx<T: crate::ValidateContext>(&mut self, field: impl Into<Key>, member: &T, context: &T::Context) {
+    pub fn validate_member_at_ctx<T: crate::ValidateContext>(
+        &mut self,
+        field: impl Into<Key>,
+        member: &T,
+        context: &T::Context,
+    ) {
         self.with_key(field, |a| member.validate_inner_ctx(a, context))
     }
 
@@ -131,7 +136,11 @@ impl Accumulator {
     }
 
     /// Like [Self::validate_iter], but for a collection of [crate::ValidateContext] items with the given context.
-    pub fn validate_iter_ctx<'a, V: crate::ValidateContext + 'a, I: IntoIterator<Item = &'a V>>(&mut self, items: I, context: &V::Context) {
+    pub fn validate_iter_ctx<'a, V: crate::ValidateContext + 'a, I: IntoIterator<Item = &'a V>>(
+        &mut self,
+        items: I,
+        context: &V::Context,
+    ) {
         items.into_iter().enumerate().for_each(|(idx, item)| {
             self.validate_member_at_ctx(idx, item, context);
         })
@@ -147,7 +156,11 @@ impl Accumulator {
     }
 
     /// Like [Self::validate_iter_at], but for a collection of [crate::ValidateContext] items with the given context.
-    pub fn validate_iter_at_ctx<'a, V: crate::ValidateContext + 'a, I: IntoIterator<Item = &'a V>>(
+    pub fn validate_iter_at_ctx<
+        'a,
+        V: crate::ValidateContext + 'a,
+        I: IntoIterator<Item = &'a V>,
+    >(
         &mut self,
         prefix: impl Into<Key>,
         items: I,

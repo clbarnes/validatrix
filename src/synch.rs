@@ -128,7 +128,10 @@ mod tests {
         fn validate_inner_ctx(&self, accum: &mut errors::Accumulator, context: &Self::Context) {
             for (i, v) in self.0.iter().enumerate() {
                 if *v > context.threshold {
-                    accum.add_failure_at(i, format!("value {v} exceeds threshold {}", context.threshold));
+                    accum.add_failure_at(
+                        i,
+                        format!("value {v} exceeds threshold {}", context.threshold),
+                    );
                 }
             }
         }
