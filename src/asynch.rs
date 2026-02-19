@@ -31,9 +31,9 @@ pub trait ValidateContext {
     ///
     /// Should not be called inside other validators;
     /// use [ValidateContext::validate_inner] instead.
-    async fn validate(&self, context: &Self::Context) -> crate::Result {
+    async fn validate_ctx(&self, context: &Self::Context) -> crate::Result {
         let mut accum = Accumulator::new();
-        self.validate_inner(context, &mut accum).await;
+        self.validate_inner_ctx(context, &mut accum).await;
         accum.into()
     }
 
@@ -41,5 +41,5 @@ pub trait ValidateContext {
     ///
     /// Validators of containing types should call this;
     /// end users probably want [ValidateContext::validate] instead.
-    async fn validate_inner(&self, context: &Self::Context, accum: &mut Accumulator);
+    async fn validate_inner_ctx(&self, context: &Self::Context, accum: &mut Accumulator);
 }

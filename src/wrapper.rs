@@ -72,8 +72,8 @@ impl<T: Validate> Valid<T> {
 }
 
 impl<T: ValidateContext> Valid<T> {
-    pub fn try_new_with_context(inner: T, context: &T::Context) -> crate::Result<Self> {
-        inner.validate(context)?;
+    pub fn try_new_ctx(inner: T, context: &T::Context) -> crate::Result<Self> {
+        inner.validate_ctx(context)?;
         Ok(Self(inner))
     }
 }
