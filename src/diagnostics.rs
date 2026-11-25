@@ -77,14 +77,10 @@ pub struct Diagnostic<'a> {
 
 impl Display for DiagnosticPath<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for k in self.path.iter() {
-            fmt_key_jsonpointer(k, f)?;
-        }
-        Ok(())
+        fmt_jsonpath(self.path, f)
     }
 }
 
-#[allow(unused)]
 fn fmt_jsonpath(path: &[Key], f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     f.write_char('$')?;
     for k in path.iter() {
@@ -93,6 +89,7 @@ fn fmt_jsonpath(path: &[Key], f: &mut std::fmt::Formatter<'_>) -> std::fmt::Resu
     Ok(())
 }
 
+#[allow(unused)]
 fn fmt_key_jsonpointer(key: &Key, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     f.write_char('/')?;
     match key {
