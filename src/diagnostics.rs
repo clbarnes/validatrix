@@ -151,3 +151,33 @@ impl Display for Diagnostic<'_> {
         f.write_str(self.message)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct JsonPath<'a>(&'a [Key]);
+
+    impl Display for JsonPath<'_> {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            fmt_jsonpath(self.0, f)
+        }
+    }
+
+    #[test]
+    fn jsonpath_keys() {
+        let path = [
+            Key::Field("plain_key1"),
+            Key::Index(3),
+            Key::Field("a.b"),
+            Key::Field("it's"),
+            Key::Field("back\\slash"),
+            Key::Field("1st"),
+            Key::Field(""),
+        ];
+        assert_eq!(
+            JsonPath(&path).to_string(),
+            r"$.plain_key1[3]['a.b']['it\'s']['back\\slash']['1st']['']"
+        );
+    }
+}
