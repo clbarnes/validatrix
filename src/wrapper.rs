@@ -25,7 +25,7 @@ impl<'de, T: serde::de::Deserialize<'de> + Validate> serde::de::Deserialize<'de>
         D: serde::Deserializer<'de>,
     {
         let value = T::deserialize(deserializer)?;
-        Self::try_new(value).map_err(serde::de::Error::custom)
+        Self::try_new_fast(value).map_err(serde::de::Error::custom)
     }
 }
 
@@ -65,13 +65,13 @@ impl<T> Borrow<T> for Valid<T> {
 // too generic.
 impl<T: Validate> Valid<T> {
     /// Validate the inner value and return the wrapped form.
-    pub fn try_new(inner: T) -> crate::Result<Self> {
-        inner.validate_fast()?;
+    pub fn try_new_fast(inner: T) -> crate::Result<Self> {
+        inner.validate()?;
         Ok(Self(inner))
     }
 
     /// Validate the inner value and return the wrapped form.
-    pub fn try_new_exhaustive(inner: T) -> crate::Result<Self> {
+    pub fn try_new(inner: T) -> crate::Result<Self> {
         inner.validate()?;
         Ok(Self(inner))
     }
