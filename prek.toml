@@ -1,0 +1,41 @@
+# See https://prek.j178.dev/configuration/ for more information
+default_install_hook_types = ["pre-commit", "pre-push"]
+
+[[repos]]
+repo = "https://github.com/pre-commit/pre-commit-hooks"
+rev = "v6.0.0"
+hooks = [
+    { id = "trailing-whitespace" },
+    { id = "end-of-file-fixer" },
+    { id = "check-yaml" },
+    { id = "check-added-large-files" },
+]
+
+# adapted from https://github.com/j178/prek/blob/master/.pre-commit-config.yaml
+[[repos]]
+repo = "local"
+
+[[repos.hooks]]
+id = "cargo-fmt"
+name = "cargo fmt"
+entry = "cargo fmt --"
+language = "system"
+types = ["rust"]
+pass_filenames = false # This makes it a lot faster
+
+[[repos.hooks]]
+id = "cargo-clippy"
+name = "cargo clippy"
+entry = "cargo clippy --all-targets --all-features -- -D warnings"
+language = "system"
+types = ["rust"]
+pass_filenames = false
+
+[[repos.hooks]]
+id = "cargo-test"
+name = "cargo test"
+entry = "cargo test --all-features"
+language = "system"
+types = ["rust"]
+pass_filenames = false
+stages = ["pre-push"]
