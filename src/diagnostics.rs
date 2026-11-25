@@ -51,28 +51,73 @@ impl<'a> Iterator for DiagnosticIter<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         let path = self.path_iter.next()?;
         let message = self.message_iter.next()?;
-        Some(Diagnostic { path, message })
+        Some(Diagnostic {
+            path: path.into(),
+            message,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialOrd, Ord, PartialEq, Eq)]
+pub struct DiagnosticPath<'a> {
+    path: &'a [Key],
+}
+
+impl<'a> From<&'a [Key]> for DiagnosticPath<'a> {
+    fn from(path: &'a [Key]) -> Self {
+        Self { path }
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialOrd, Ord, PartialEq, Eq)]
 pub struct Diagnostic<'a> {
-    path: &'a [Key],
-    message: &'a str,
+    pub path: DiagnosticPath<'a>,
+    pub message: &'a str,
+}
+
+impl Display for DiagnosticPath<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        fmt_jsonpointer(self.path, f)
+    }
+}
+
+#[allow(unused)]
+fn fmt_jsonpath(path: &[Key], f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    f.write_char('$')?;
+    for c in path.iter() {
+        match c {
+            Key::Index(n) => f.write_fmt(format_args!("[{n}]"))?,
+            Key::Field(s) => {
+                f.write_char('.')?;
+                f.write_str(s)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn fmt_jsonpointer(path: &[Key], f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    for c in path.iter() {
+        f.write_char('/')?;
+        match c {
+            Key::Index(n) => f.write_fmt(format_args!("{n}"))?,
+            Key::Field(s) => {
+                for c in s.chars() {
+                    match c {
+                        '~' => f.write_str("~0")?,
+                        '/' => f.write_str("~1")?,
+                        _ => f.write_char(c)?,
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 impl Display for Diagnostic<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_char('$')?;
-        for c in self.path.iter() {
-            match c {
-                Key::Index(n) => f.write_fmt(format_args!("[{n}]"))?,
-                Key::Field(s) => {
-                    f.write_char('.')?;
-                    f.write_str(s)?;
-                }
-            }
-        }
+        self.path.fmt(f)?;
         f.write_str(": ")?;
         f.write_str(self.message)
     }
