@@ -17,7 +17,7 @@ although implementors can choose to fail fast instead.
 ## Usage
 
 ```rust
-use validatrix::{Validate, Accumulator, Valid};
+use validatrix::{Validate, Accumulator, Error, Valid};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct A {
@@ -44,37 +44,39 @@ struct C {
 // Implement `validatrix::Validate` on your structs.
 impl Validate for A {
     // `Accumulator` allows you to continue looking for validation errors after the first.
-    // But you can return early if you prefer.
-    fn validate_inner(&self, accum: &mut Accumulator) {
+    // Its methods return an error only when it is not exhaustive (fail-fast),
+    // so propagate them with `?`.
+    fn validate_inner(&self, accum: &mut Accumulator) -> Result<(), Error> {
         if self.avalue % 3 == 0 {
             // Each failure is added with a context: the name of the field
             // (or index of a sequence) which failed.
-            accum.add_failure_at("avalue", "fizz");
+            accum.add_failure_at("avalue", "fizz")?;
         }
 
         // Fields implementing validatrix::Validate can have validation errors accumulated too.
-        accum.validate_member_at("b", &self.b);
+        accum.validate_member_at("b", &self.b)
     }
 }
 
 impl Validate for B {
-    fn validate_inner(&self, accum: &mut Accumulator) {
+    fn validate_inner(&self, accum: &mut Accumulator) -> Result<(), Error> {
         if self.bvalue % 5 == 0 {
             // You can also manually do validation within a prefix context
-            accum.with_key("bvalue", |a| a.add_failure("buzz"));
+            accum.with_key("bvalue", |a| a.add_failure("buzz"))?;
         }
 
         // Helper method for validating a sequence of validatrix::Validate structs
-        accum.validate_iter_at("cs", &self.cs);
+        accum.validate_iter_at("cs", &self.cs)
     }
 }
 
 
 impl Validate for C {
-    fn validate_inner(&self, accum: &mut Accumulator) {
+    fn validate_inner(&self, accum: &mut Accumulator) -> Result<(), Error> {
         if (self.cvalue % 3 * self.cvalue % 5) == 0 {
-            accum.add_failure_at("cvalue", "fizzbuzz")
+            accum.add_failure_at("cvalue", "fizzbuzz")?;
         }
+        Ok(())
     }
 }
 

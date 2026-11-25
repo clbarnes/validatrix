@@ -1,4 +1,4 @@
-use crate::errors::Accumulator;
+use crate::errors::{Accumulator, Error};
 
 /// Trait for asynchronous validation.
 #[allow(async_fn_in_trait)]
@@ -10,7 +10,19 @@ pub trait Validate {
     /// Should not be overridden by implementors.
     async fn validate(&self) -> crate::Result {
         let mut accum = Accumulator::new();
-        self.validate_inner(&mut accum).await;
+        self.validate_inner(&mut accum).await?;
+        accum.into()
+    }
+
+    /// Perform top-level validation on this value, failing at the first invalid item.
+    ///
+    /// Should not be called inside other validators;
+    /// use [Validate::validate_inner] instead.
+    /// Should not be overridden by implementors.
+    async fn validate_fast(&self) -> crate::Result {
+        let mut accum = Accumulator::new();
+        accum.exhaustive(false);
+        self.validate_inner(&mut accum).await?;
         accum.into()
     }
 
@@ -18,7 +30,7 @@ pub trait Validate {
     ///
     /// Validators of containing types should call this;
     /// end users probably want [Validate::validate] instead.
-    async fn validate_inner(&self, accum: &mut Accumulator);
+    async fn validate_inner(&self, accum: &mut Accumulator) -> Result<(), Error>;
 }
 
 /// Trait for asynchronous validation where some external data or context is required.
@@ -33,7 +45,7 @@ pub trait ValidateContext {
     /// use [ValidateContext::validate_inner] instead.
     async fn validate_ctx(&self, context: &Self::Context) -> crate::Result {
         let mut accum = Accumulator::new();
-        self.validate_inner_ctx(context, &mut accum).await;
+        let _ = self.validate_inner_ctx(context, &mut accum).await;
         accum.into()
     }
 
@@ -41,5 +53,9 @@ pub trait ValidateContext {
     ///
     /// Validators of containing types should call this;
     /// end users probably want [ValidateContext::validate] instead.
-    async fn validate_inner_ctx(&self, context: &Self::Context, accum: &mut Accumulator);
+    async fn validate_inner_ctx(
+        &self,
+        context: &Self::Context,
+        accum: &mut Accumulator,
+    ) -> Result<(), Error>;
 }

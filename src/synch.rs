@@ -1,4 +1,4 @@
-use crate::errors::Accumulator;
+use crate::errors::{Accumulator, Error};
 
 /// Trait for synchronous validation.
 pub trait Validate {
@@ -9,7 +9,20 @@ pub trait Validate {
     /// Should not be overridden by implementors.
     fn validate(&self) -> crate::Result {
         let mut accum = Accumulator::new();
-        self.validate_inner(&mut accum);
+        // in exhaustive mode, failures are recorded in the accumulator rather than returned
+        self.validate_inner(&mut accum)?;
+        accum.into()
+    }
+
+    /// Perform top-level validation on this value, failing at the first invalid item.
+    ///
+    /// Should not be called inside other validators;
+    /// use [Validate::validate_inner] instead.
+    /// Should not be overridden by implementors.
+    fn validate_fast(&self) -> crate::Result {
+        let mut accum = Accumulator::new();
+        accum.exhaustive(false);
+        self.validate_inner(&mut accum)?;
         accum.into()
     }
 
@@ -17,7 +30,10 @@ pub trait Validate {
     ///
     /// Validators of containing types should call this;
     /// end users probably want [Validate::validate] instead.
-    fn validate_inner(&self, accum: &mut Accumulator);
+    ///
+    /// Should return an error (generally by `?`-propagating the results of [Accumulator] methods)
+    /// as soon as the accumulator reports one, i.e. when it is not exhaustive.
+    fn validate_inner(&self, accum: &mut Accumulator) -> Result<(), Error>;
 }
 
 /// Trait for synchronous validation where some external data or context is required.
@@ -32,7 +48,7 @@ pub trait ValidateContext {
     /// Should not be overridden by implementors.
     fn validate_ctx(&self, context: &Self::Context) -> crate::Result {
         let mut accum = Accumulator::new();
-        self.validate_inner_ctx(&mut accum, context);
+        let _ = self.validate_inner_ctx(&mut accum, context);
         accum.into()
     }
 
@@ -40,7 +56,11 @@ pub trait ValidateContext {
     ///
     /// Validators of containing types should call this;
     /// end users probably want [ValidateContext::validate] instead.
-    fn validate_inner_ctx(&self, accum: &mut Accumulator, context: &Self::Context);
+    fn validate_inner_ctx(
+        &self,
+        accum: &mut Accumulator,
+        context: &Self::Context,
+    ) -> Result<(), Error>;
 }
 
 #[cfg(test)]
@@ -55,12 +75,12 @@ mod tests {
     }
 
     impl Validate for A {
-        fn validate_inner(&self, accum: &mut errors::Accumulator) {
+        fn validate_inner(&self, accum: &mut errors::Accumulator) -> Result<(), Error> {
             if self.avalue % 2 != 0 {
-                accum.add_failure_at("avalue", "value is odd");
+                accum.add_failure_at("avalue", "value is odd")?;
             }
 
-            accum.validate_member_at("b", &self.b);
+            accum.validate_member_at("b", &self.b)
         }
     }
 
@@ -70,12 +90,12 @@ mod tests {
     }
 
     impl Validate for B {
-        fn validate_inner(&self, accum: &mut errors::Accumulator) {
+        fn validate_inner(&self, accum: &mut errors::Accumulator) -> Result<(), Error> {
             if self.bvalue % 2 != 0 {
-                accum.add_failure_at("bvalue", "value is odd");
+                accum.add_failure_at("bvalue", "value is odd")?;
             }
 
-            accum.validate_iter_at("cs", &self.cs);
+            accum.validate_iter_at("cs", &self.cs)
         }
     }
 
@@ -84,10 +104,11 @@ mod tests {
     }
 
     impl Validate for C {
-        fn validate_inner(&self, accum: &mut errors::Accumulator) {
+        fn validate_inner(&self, accum: &mut errors::Accumulator) -> Result<(), Error> {
             if self.cvalue % 2 != 0 {
-                accum.add_failure_at("cvalue", "value is odd");
+                accum.add_failure_at("cvalue", "value is odd")?;
             }
+            Ok(())
         }
     }
 
@@ -125,15 +146,20 @@ mod tests {
     impl ValidateContext for D {
         type Context = DContext;
 
-        fn validate_inner_ctx(&self, accum: &mut errors::Accumulator, context: &Self::Context) {
+        fn validate_inner_ctx(
+            &self,
+            accum: &mut errors::Accumulator,
+            context: &Self::Context,
+        ) -> Result<(), Error> {
             for (i, v) in self.0.iter().enumerate() {
                 if *v > context.threshold {
                     accum.add_failure_at(
                         i,
                         format!("value {v} exceeds threshold {}", context.threshold),
-                    );
+                    )?;
                 }
             }
+            Ok(())
         }
     }
 

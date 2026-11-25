@@ -88,10 +88,11 @@ mod tests {
     }
 
     impl Validate for MyStruct {
-        fn validate_inner(&self, accum: &mut crate::Accumulator) {
+        fn validate_inner(&self, accum: &mut crate::Accumulator) -> Result<(), crate::Error> {
             if !self.is_valid {
-                accum.add_failure_at("is_valid", "struct marked invalid");
+                accum.add_failure_at("is_valid", "struct marked invalid")?;
             }
+            Ok(())
         }
     }
 
