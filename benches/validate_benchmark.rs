@@ -2,7 +2,7 @@ use criterion::{criterion_group, criterion_main, Criterion};
 use rand::{rngs::SmallRng, SeedableRng};
 use serde::{Deserialize, Serialize};
 use std::hint::black_box;
-use validatrix::{Levels, Validate};
+use validatrix::{Policy, Validate};
 
 #[derive(Debug, Serialize, Deserialize)]
 struct MyStruct {
@@ -102,7 +102,7 @@ fn validate_benchmark_failfast(c: &mut Criterion) {
     let s = standard_struct();
     c.bench_function("validate_fast", |b| {
         b.iter(|| {
-            let _res = black_box(&s).validate_levels(Levels::FAST);
+            let _res = black_box(&s).validate_policy(Policy::FAST);
         })
     });
 }

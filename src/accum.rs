@@ -35,14 +35,14 @@ pub struct Accumulator {
     /// This prefix is applied to any failures added to the accumulator.
     prefix: Vec<Key>,
     diagnostics: Diagnostics,
-    levels: Levels,
+    policy: Policy,
 }
 
 /// Levels of validation diagnostics to ignore, raise later, or raise immediately.
 ///
 /// Some common configurations are provided as associated constants.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Levels {
+pub struct Policy {
     /// Do not store diagnostics below this level (exclusive).
     pub ignore_below: Level,
     /// At the end of validation, raise an error if any diagnostics were above this level (exclusive).
@@ -51,13 +51,13 @@ pub struct Levels {
     pub fail_fast_above: Level,
 }
 
-impl Default for Levels {
+impl Default for Policy {
     fn default() -> Self {
         Self::DEFAULT
     }
 }
 
-impl Levels {
+impl Policy {
     /// Ignore anything below Warning, raise Errors, and fail fast on Critical.
     pub const DEFAULT: Self = Self {
         ignore_below: Level::Warning,
@@ -76,10 +76,16 @@ impl Levels {
         raise_above: Level::Warning,
         fail_fast_above: Level::Error,
     };
+    /// Store everything.
+    pub const DETAILED: Self = Self {
+        ignore_below: Level::MIN,
+        raise_above: Level::Warning,
+        fail_fast_above: Level::Error,
+    };
     /// Store everything, error on warnings.
     pub const STRICT: Self = Self {
         ignore_below: Level::MIN,
-        raise_above: Level::Info,
+        raise_above: Level::MIN,
         fail_fast_above: Level::Error,
     };
 
@@ -93,11 +99,11 @@ impl Levels {
 }
 
 impl Accumulator {
-    pub(crate) fn with_levels(levels: Levels) -> Self {
+    pub(crate) fn with_policy(policy: Policy) -> Self {
         Self {
             prefix: Default::default(),
             diagnostics: Default::default(),
-            levels,
+            policy,
         }
     }
 
@@ -106,11 +112,11 @@ impl Accumulator {
         level: Level,
         message: impl AsRef<str>,
     ) -> Result<(), DiagnosticError> {
-        if level < self.levels.ignore_below {
+        if level < self.policy.ignore_below {
             return Ok(());
         }
         self.diagnostics.push(&self.prefix, level, message);
-        if level > self.levels.fail_fast_above {
+        if level > self.policy.fail_fast_above {
             let diag = std::mem::take(&mut self.diagnostics);
             Err(DiagnosticError(diag))
         } else {
@@ -223,6 +229,6 @@ impl Accumulator {
 
 impl From<Accumulator> for crate::DiagnosticResult {
     fn from(accum: Accumulator) -> Self {
-        accum.diagnostics.result_for_level(accum.levels.raise_above)
+        accum.diagnostics.result_for_level(accum.policy.raise_above)
     }
 }

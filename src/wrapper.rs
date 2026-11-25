@@ -1,6 +1,6 @@
 use std::{borrow::Borrow, ops::Deref};
 
-use crate::{accum::Levels, Diagnostics, Validate};
+use crate::{accum::Policy, Diagnostics, Validate};
 
 /// Wrapper type containing a value which must have been validated.
 #[derive(Debug)]
@@ -25,7 +25,7 @@ impl<'de, T: serde::de::Deserialize<'de> + Validate> serde::de::Deserialize<'de>
         D: serde::Deserializer<'de>,
     {
         let value = T::deserialize(deserializer)?;
-        Self::with_levels(value, Levels::FAST).map_err(serde::de::Error::custom)
+        Self::with_policy(value, Policy::FAST).map_err(serde::de::Error::custom)
     }
 }
 
@@ -62,40 +62,40 @@ impl<T> Borrow<T> for Valid<T> {
 }
 
 impl<T: Validate> Valid<T> {
-    pub fn with_levels(inner: T, levels: Levels) -> Result<Self, crate::DiagnosticError> {
-        inner.validate_levels(levels)?;
+    pub fn with_policy(inner: T, policy: Policy) -> Result<Self, crate::DiagnosticError> {
+        inner.validate_policy(policy)?;
         Ok(Self(inner))
     }
 
     /// Validate the inner value and return the wrapped form.
     pub fn try_new(inner: T) -> Result<Self, crate::DiagnosticError> {
-        inner.validate_levels(Default::default())?;
+        inner.validate_policy(Default::default())?;
         Ok(Self(inner))
     }
 }
 
-/// Factory which produces [Valid]-wrapped instances with consistent validation rules.
+/// Factory which produces [Valid]-wrapped instances with consistent validation policies.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Validator {
-    levels: Levels,
+    policy: Policy,
 }
 
-impl From<Levels> for Validator {
-    fn from(levels: Levels) -> Self {
-        Self { levels }
+impl From<Policy> for Validator {
+    fn from(policy: Policy) -> Self {
+        Self { policy }
     }
 }
 
 impl Validator {
-    pub fn new(levels: Levels) -> Self {
-        Self { levels }
+    pub fn new(policy: Policy) -> Self {
+        Self { policy }
     }
 
     pub fn validate<T: Validate>(
         &self,
         value: T,
     ) -> Result<(Valid<T>, Diagnostics), crate::DiagnosticError> {
-        let diag = value.validate_levels(self.levels)?;
+        let diag = value.validate_policy(self.policy)?;
         Ok((Valid(value), diag))
     }
 }

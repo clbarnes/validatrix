@@ -1,5 +1,5 @@
 use crate::{
-    accum::{Accumulator, Levels},
+    accum::{Accumulator, Policy},
     errors::DiagnosticError,
 };
 
@@ -11,7 +11,7 @@ pub trait Validate {
     /// use [Validate::validate_inner] instead.
     /// Should not be overridden by implementors.
     fn validate(&self) -> crate::DiagnosticResult {
-        self.validate_levels(Default::default())
+        self.validate_policy(Default::default())
     }
 
     /// Perform top-level validation on this value, failing at the first invalid item.
@@ -19,8 +19,8 @@ pub trait Validate {
     /// Should not be called inside other validators;
     /// use [Validate::validate_inner] instead.
     /// Should not be overridden by implementors.
-    fn validate_levels(&self, levels: Levels) -> crate::DiagnosticResult {
-        let mut accum = Accumulator::with_levels(levels);
+    fn validate_policy(&self, policy: Policy) -> crate::DiagnosticResult {
+        let mut accum = Accumulator::with_policy(policy);
         self.validate_inner(&mut accum)?;
         accum.into()
     }

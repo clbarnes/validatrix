@@ -128,7 +128,7 @@ assert!(Valid::try_new(invalid.clone()).is_err());
 
 ```
 
-Validation behaviour including ignoring low-level diagnostics and early returning on high-level diagnostics can be fine-tuned with the `Validate::validate_levels` method.
+Validation behaviour including ignoring low-level diagnostics and early returning on high-level diagnostics can be fine-tuned with the `Validate::validate_policy` method.
 
 ## Why not
 
