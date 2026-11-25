@@ -5,8 +5,38 @@ use crate::{
     Key,
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub enum Level {
+    Info,
+    Warning,
+    #[default]
+    Error,
+    Critical,
+}
+
+impl Level {
+    pub const MIN: Self = Self::Info;
+    pub const MAX: Self = Self::Critical;
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Level::Info => "INFO",
+            Level::Warning => "WARNING",
+            Level::Error => "ERROR",
+            Level::Critical => "CRITICAL",
+        }
+    }
+}
+
+impl Display for Level {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct Diagnostics {
+    levels: Vec<Level>,
     paths: SharedBuf<Key>,
     messages: SharedStringBuf,
 }
@@ -20,20 +50,37 @@ impl Diagnostics {
         self.paths.is_empty()
     }
 
+    pub(crate) fn result_for_level(self, level: Level) -> crate::DiagnosticResult {
+        if self.levels.iter().any(|&l| l > level) {
+            Err(crate::DiagnosticError(self))
+        } else {
+            Ok(self)
+        }
+    }
+
     #[allow(unused)]
-    pub fn push_prefix(&mut self, prefix: &[Key], path: &[Key], message: impl AsRef<str>) {
+    pub fn push_prefix(
+        &mut self,
+        prefix: &[Key],
+        path: &[Key],
+        level: Level,
+        message: impl AsRef<str>,
+    ) {
+        self.levels.push(level);
         self.paths
             .push(prefix.iter().copied().chain(path.iter().copied()));
         self.messages.push(message);
     }
 
-    pub fn push(&mut self, path: &[Key], message: impl AsRef<str>) {
+    pub fn push(&mut self, path: &[Key], level: Level, message: impl AsRef<str>) {
+        self.levels.push(level);
         self.paths.push(path.iter().copied());
         self.messages.push(message);
     }
 
     pub fn iter(&self) -> DiagnosticIter<'_> {
         DiagnosticIter {
+            level_iter: self.levels.iter(),
             path_iter: self.paths.iter(),
             message_iter: self.messages.iter(),
         }
@@ -41,6 +88,7 @@ impl Diagnostics {
 }
 
 pub struct DiagnosticIter<'a> {
+    level_iter: std::slice::Iter<'a, Level>,
     path_iter: SharedBufIter<'a, Key>,
     message_iter: SharedStringBufIter<'a>,
 }
@@ -52,6 +100,7 @@ impl<'a> Iterator for DiagnosticIter<'a> {
         let path = self.path_iter.next()?;
         let message = self.message_iter.next()?;
         Some(Diagnostic {
+            level: *self.level_iter.next()?,
             path: path.into(),
             message,
         })
@@ -71,6 +120,7 @@ impl<'a> From<&'a [Key]> for DiagnosticPath<'a> {
 
 #[derive(Debug, Clone, Copy, PartialOrd, Ord, PartialEq, Eq)]
 pub struct Diagnostic<'a> {
+    pub level: Level,
     pub path: DiagnosticPath<'a>,
     pub message: &'a str,
 }
@@ -143,9 +193,7 @@ fn is_jsonpath_shorthand(s: &str) -> bool {
 
 impl Display for Diagnostic<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.path.fmt(f)?;
-        f.write_str(": ")?;
-        f.write_str(self.message)
+        write!(f, "{} @ {}: {}", self.level, self.path, self.message)
     }
 }
 

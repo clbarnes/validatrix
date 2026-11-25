@@ -1,6 +1,6 @@
 use std::{borrow::Borrow, ops::Deref};
 
-use crate::Validate;
+use crate::{accum::Levels, Diagnostics, Validate};
 
 /// Wrapper type containing a value which must have been validated.
 #[derive(Debug)]
@@ -25,7 +25,7 @@ impl<'de, T: serde::de::Deserialize<'de> + Validate> serde::de::Deserialize<'de>
         D: serde::Deserializer<'de>,
     {
         let value = T::deserialize(deserializer)?;
-        Self::try_new_fast(value).map_err(serde::de::Error::custom)
+        Self::with_levels(value, Levels::FAST).map_err(serde::de::Error::custom)
     }
 }
 
@@ -61,25 +61,48 @@ impl<T> Borrow<T> for Valid<T> {
     }
 }
 
-// N.B. can't use TryFrom because of the blanket implementation of TryFrom for From;
-// too generic.
 impl<T: Validate> Valid<T> {
-    /// Validate the inner value and return the wrapped form.
-    pub fn try_new_fast(inner: T) -> crate::Result<Self> {
-        inner.validate()?;
+    pub fn with_levels(inner: T, levels: Levels) -> Result<Self, crate::DiagnosticError> {
+        inner.validate_levels(levels)?;
         Ok(Self(inner))
     }
 
     /// Validate the inner value and return the wrapped form.
-    pub fn try_new(inner: T) -> crate::Result<Self> {
-        inner.validate()?;
+    pub fn try_new(inner: T) -> Result<Self, crate::DiagnosticError> {
+        inner.validate_levels(Default::default())?;
         Ok(Self(inner))
+    }
+}
+
+/// Factory which produces [Valid]-wrapped instances with consistent validation rules.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Validator {
+    levels: Levels,
+}
+
+impl From<Levels> for Validator {
+    fn from(levels: Levels) -> Self {
+        Self { levels }
+    }
+}
+
+impl Validator {
+    pub fn new(levels: Levels) -> Self {
+        Self { levels }
+    }
+
+    pub fn validate<T: Validate>(
+        &self,
+        value: T,
+    ) -> Result<(Valid<T>, Diagnostics), crate::DiagnosticError> {
+        let diag = value.validate_levels(self.levels)?;
+        Ok((Valid(value), diag))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{Valid, Validate};
+    use crate::{Level, Valid, Validate};
 
     #[derive(Debug, serde::Serialize, serde::Deserialize)]
     struct MyStruct {
@@ -87,9 +110,12 @@ mod tests {
     }
 
     impl Validate for MyStruct {
-        fn validate_inner(&self, accum: &mut crate::Accumulator) -> Result<(), crate::Error> {
+        fn validate_inner(
+            &self,
+            accum: &mut crate::Accumulator,
+        ) -> Result<(), crate::DiagnosticError> {
             if !self.is_valid {
-                accum.add_failure_at("is_valid", "struct marked invalid")?;
+                accum.diagnose_at("is_valid", Level::Error, "struct marked invalid")?;
             }
             Ok(())
         }

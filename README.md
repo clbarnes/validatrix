@@ -17,7 +17,7 @@ although implementors can choose to fail fast instead.
 ## Usage
 
 ```rust
-use validatrix::{Validate, Accumulator, Error, Valid};
+use validatrix::{Validate, Accumulator, DiagnosticError, Valid, Level};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct A {
@@ -46,11 +46,11 @@ impl Validate for A {
     // `Accumulator` allows you to continue looking for validation errors after the first.
     // Its methods return an error only when it is not exhaustive (fail-fast),
     // so propagate them with `?`.
-    fn validate_inner(&self, accum: &mut Accumulator) -> Result<(), Error> {
+    fn validate_inner(&self, accum: &mut Accumulator) -> Result<(), DiagnosticError> {
         if self.avalue % 3 == 0 {
             // Each failure is added with a context: the name of the field
             // (or index of a sequence) which failed.
-            accum.add_failure_at("avalue", "fizz")?;
+            accum.diagnose_at("avalue", Level::Error, "fizz")?;
         }
 
         // Fields implementing validatrix::Validate can have validation errors accumulated too.
@@ -59,10 +59,10 @@ impl Validate for A {
 }
 
 impl Validate for B {
-    fn validate_inner(&self, accum: &mut Accumulator) -> Result<(), Error> {
+    fn validate_inner(&self, accum: &mut Accumulator) -> Result<(), DiagnosticError> {
         if self.bvalue % 5 == 0 {
             // You can also manually do validation within a prefix context
-            accum.with_key("bvalue", |a| a.add_failure("buzz"))?;
+            accum.with_key("bvalue", |a| a.diagnose(Level::Error, "buzz"))?;
         }
 
         // Helper method for validating a sequence of validatrix::Validate structs
@@ -72,9 +72,9 @@ impl Validate for B {
 
 
 impl Validate for C {
-    fn validate_inner(&self, accum: &mut Accumulator) -> Result<(), Error> {
+    fn validate_inner(&self, accum: &mut Accumulator) -> Result<(), DiagnosticError> {
         if (self.cvalue % 3 * self.cvalue % 5) == 0 {
-            accum.add_failure_at("cvalue", "fizzbuzz")?;
+            accum.diagnose_at("cvalue", Level::Error, "fizzbuzz")?;
         }
         Ok(())
     }
@@ -101,11 +101,11 @@ let invalid = A {
 let err = invalid.validate().unwrap_err();
 let validation_report = format!("{err}");
 assert_eq!(validation_report, "
-Validation failure(s):
-   $.avalue: fizz
-   $.b.bvalue: buzz
-   $.b.cs[0].cvalue: fizzbuzz
-   $.b.cs[1].cvalue: fizzbuzz
+Validation diagnostics:
+   ERROR @ $.avalue: fizz
+   ERROR @ $.b.bvalue: buzz
+   ERROR @ $.b.cs[0].cvalue: fizzbuzz
+   ERROR @ $.b.cs[1].cvalue: fizzbuzz
 ".trim());
 
 // the `Valid` wrapper type enforces validity
@@ -128,9 +128,7 @@ assert!(Valid::try_new(invalid.clone()).is_err());
 
 ```
 
-There is also an asynchronous variant in the `validatrix::asynch` module.
-See also `validatrix(::asynch)::ValidateContext`,
-which allows passing a reference to some external data as context for the validation.
+Validation behaviour including ignoring low-level diagnostics and early returning on high-level diagnostics can be fine-tuned with the `Validate::validate_levels` method.
 
 ## Why not
 
@@ -150,18 +148,3 @@ JSONSchema-like validators tend not to be good at schema-level validation.
 Make releases using [cargo-release](https://github.com/crate-ci/cargo-release).
 
 Use [prek](https://github.com/j178/prek) to manage pre-commit hooks.
-
-### MSRV
-
-`validatrix` should run on the rust version specified in `Cargo.toml`.
-However, a more recent version may be required by certain development dependencies.
-
-### To do
-
-- use `Cow<str>` (or alternative like [hipstr](https://crates.io/crates/hipstr), [ecow](https://crates.io/crates/ecow) etc.) for `Failure::message`;
-  alternatively, use `Box<dyn Error>` (but then people have to write their own validation errors, although `String`s would still work)
-- `Accumulator` could have a fail-fast mode
-  - could cap the number of errors at a given value, which might be 1
-  - methods would return `Result`s (`Err` if fail-fast is `true`, otherwise `Ok`) so they can be `?`'d and propagate
-  - this would cause weirdness in the `&mut self` methods which would then need to cede their failures to the returned errors
-- `Key::Field` could use a `Cow` so that custom field names can be used e.g. for maps (or a third variant like `Key::MapKey(String)`)

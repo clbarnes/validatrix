@@ -1,8 +1,13 @@
 use std::ops::Index;
 
+/// A buffer of items, where each item is a slice of the underlying data.
+///
+/// Useful for reducing allocations for many small items which do not need to be modified or individually owned.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct SharedBuf<T> {
+    /// Shared buffer of all item slices, concatenated.
     data: Vec<T>,
+    /// End indices of each item slice in `data`.
     ends: Vec<usize>,
 }
 

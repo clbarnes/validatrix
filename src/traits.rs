@@ -1,4 +1,7 @@
-use crate::{accum::Accumulator, errors::Error};
+use crate::{
+    accum::{Accumulator, Levels},
+    errors::DiagnosticError,
+};
 
 /// Trait for synchronous validation.
 pub trait Validate {
@@ -7,11 +10,8 @@ pub trait Validate {
     /// Should not be called inside other validators;
     /// use [Validate::validate_inner] instead.
     /// Should not be overridden by implementors.
-    fn validate(&self) -> crate::Result {
-        let mut accum = Accumulator::new();
-        // in exhaustive mode, failures are recorded in the accumulator rather than returned
-        self.validate_inner(&mut accum)?;
-        accum.into()
+    fn validate(&self) -> crate::DiagnosticResult {
+        self.validate_levels(Default::default())
     }
 
     /// Perform top-level validation on this value, failing at the first invalid item.
@@ -19,9 +19,8 @@ pub trait Validate {
     /// Should not be called inside other validators;
     /// use [Validate::validate_inner] instead.
     /// Should not be overridden by implementors.
-    fn validate_fast(&self) -> crate::Result {
-        let mut accum = Accumulator::new();
-        accum.exhaustive(false);
+    fn validate_levels(&self, levels: Levels) -> crate::DiagnosticResult {
+        let mut accum = Accumulator::with_levels(levels);
         self.validate_inner(&mut accum)?;
         accum.into()
     }
@@ -33,7 +32,7 @@ pub trait Validate {
     ///
     /// Should return an error (generally by `?`-propagating the results of [Accumulator] methods)
     /// as soon as the accumulator reports one, i.e. when it is not exhaustive.
-    fn validate_inner(&self, accum: &mut Accumulator) -> Result<(), Error>;
+    fn validate_inner(&self, accum: &mut Accumulator) -> Result<(), DiagnosticError>;
 }
 
 #[cfg(test)]
@@ -48,9 +47,9 @@ mod tests {
     }
 
     impl Validate for A {
-        fn validate_inner(&self, accum: &mut accum::Accumulator) -> Result<(), Error> {
+        fn validate_inner(&self, accum: &mut accum::Accumulator) -> Result<(), DiagnosticError> {
             if self.avalue % 2 != 0 {
-                accum.add_failure_at("avalue", "value is odd")?;
+                accum.diagnose_at("avalue", Level::Error, "value is odd")?;
             }
 
             accum.validate_member_at("b", &self.b)
@@ -63,9 +62,9 @@ mod tests {
     }
 
     impl Validate for B {
-        fn validate_inner(&self, accum: &mut accum::Accumulator) -> Result<(), Error> {
+        fn validate_inner(&self, accum: &mut accum::Accumulator) -> Result<(), DiagnosticError> {
             if self.bvalue % 2 != 0 {
-                accum.add_failure_at("bvalue", "value is odd")?;
+                accum.diagnose_at("bvalue", Level::Error, "value is odd")?;
             }
 
             accum.validate_iter_at("cs", &self.cs)
@@ -77,9 +76,9 @@ mod tests {
     }
 
     impl Validate for C {
-        fn validate_inner(&self, accum: &mut accum::Accumulator) -> Result<(), Error> {
+        fn validate_inner(&self, accum: &mut accum::Accumulator) -> Result<(), DiagnosticError> {
             if self.cvalue % 2 != 0 {
-                accum.add_failure_at("cvalue", "value is odd")?;
+                accum.diagnose_at("cvalue", Level::Error, "value is odd")?;
             }
             Ok(())
         }

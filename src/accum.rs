@@ -1,18 +1,8 @@
 use crate::{
     diagnostics::Diagnostics,
-    errors::{Error, Key, Result},
-    Validate,
+    errors::{DiagnosticError, Key},
+    Level, Validate,
 };
-
-impl From<Accumulator> for Result<(), Error> {
-    fn from(value: Accumulator) -> Self {
-        if value.diagnostics.is_empty() {
-            Ok(())
-        } else {
-            Err(Error(value.diagnostics))
-        }
-    }
-}
 
 /// Type used to build up a list of validation failures.
 ///
@@ -23,79 +13,138 @@ impl From<Accumulator> for Result<(), Error> {
 /// This allows nested fields to report where the failure happened.
 ///
 /// ```
-/// use validatrix::Accumulator;
+/// use validatrix::{Accumulator, Level, DiagnosticError};
 ///
-/// fn accumulate(accum: &mut Accumulator) -> Result<(), validatrix::Error> {
+/// fn accumulate(accum: &mut Accumulator) -> Result<(), DiagnosticError> {
 ///     accum.with_key("some_field", |a| {
 ///         if true == false {
-///             a.add_failure("pigs have flown")?;
+///             a.diagnose(Level::Error, "pigs have flown")?;
 ///         }
 ///         Ok(())
 ///     })?;
 ///
 ///     // equivalent to the above
 ///     if true == false {
-///         accum.add_failure_at("some_field", "hell has frozen over")?;
+///         accum.diagnose_at("some_field", Level::Error, "hell has frozen over")?;
 ///     }
 ///     Ok(())
 /// }
 /// ```
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Accumulator {
     /// This prefix is applied to any failures added to the accumulator.
     prefix: Vec<Key>,
     diagnostics: Diagnostics,
-    exhaustive: bool,
+    levels: Levels,
 }
 
-impl Accumulator {
-    pub(crate) fn new() -> Self {
+/// Levels of validation diagnostics to ignore, raise later, or raise immediately.
+///
+/// Some common configurations are provided as associated constants.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Levels {
+    /// Do not store diagnostics below this level (exclusive).
+    pub ignore_below: Level,
+    /// At the end of validation, raise an error if any diagnostics were above this level (exclusive).
+    pub raise_above: Level,
+    /// Raise an error immediately on a diagnostic above this level (exclusive).
+    pub fail_fast_above: Level,
+}
+
+impl Default for Levels {
+    fn default() -> Self {
+        Self::DEFAULT
+    }
+}
+
+impl Levels {
+    /// Ignore anything below Warning, raise Errors, and fail fast on Critical.
+    pub const DEFAULT: Self = Self {
+        ignore_below: Level::Warning,
+        raise_above: Level::Warning,
+        fail_fast_above: Level::Error,
+    };
+    /// Fail fast on Error and above.
+    pub const FAST: Self = Self {
+        ignore_below: Level::Warning,
+        raise_above: Level::Warning,
+        fail_fast_above: Level::Warning,
+    };
+    /// Only store errors.
+    pub const QUIET: Self = Self {
+        ignore_below: Level::Error,
+        raise_above: Level::Warning,
+        fail_fast_above: Level::Error,
+    };
+    /// Store everything, error on warnings.
+    pub const STRICT: Self = Self {
+        ignore_below: Level::MIN,
+        raise_above: Level::Info,
+        fail_fast_above: Level::Error,
+    };
+
+    pub fn new(ignore_below: Level, raise_above: Level, fail_fast_above: Level) -> Self {
         Self {
-            prefix: Default::default(),
-            diagnostics: Default::default(),
-            exhaustive: true,
+            ignore_below,
+            raise_above,
+            fail_fast_above,
         }
     }
 }
 
 impl Accumulator {
-    pub(crate) fn exhaustive(&mut self, exhaustive: bool) {
-        self.exhaustive = exhaustive;
+    pub(crate) fn with_levels(levels: Levels) -> Self {
+        Self {
+            prefix: Default::default(),
+            diagnostics: Default::default(),
+            levels,
+        }
     }
 
-    /// Whether this accumulator collects all failures (`true`)
-    /// or stops at the first one (`false`).
-    pub fn is_exhaustive(&self) -> bool {
-        self.exhaustive
-    }
-
-    /// Return all failures so far as an [Error]
-    /// if this accumulator is not exhaustive and has any failures.
-    pub fn fail_early(&self) -> Result<(), Error> {
-        if !self.exhaustive && !self.diagnostics.is_empty() {
-            Err(Error(self.diagnostics.clone()))
+    pub fn diagnose(
+        &mut self,
+        level: Level,
+        message: impl AsRef<str>,
+    ) -> Result<(), DiagnosticError> {
+        if level < self.levels.ignore_below {
+            return Ok(());
+        }
+        self.diagnostics.push(&self.prefix, level, message);
+        if level > self.levels.fail_fast_above {
+            let diag = std::mem::take(&mut self.diagnostics);
+            Err(DiagnosticError(diag))
         } else {
             Ok(())
         }
     }
 
+    pub fn diagnose_at(
+        &mut self,
+        prefix: impl Into<Key>,
+        level: Level,
+        message: impl AsRef<str>,
+    ) -> Result<(), DiagnosticError> {
+        self.with_key(prefix, |a| a.diagnose(level, message))
+    }
+
     /// Add an extra failure to this accumulator.
     ///
-    /// Returns an error if this accumulator is not exhaustive.
-    pub fn add_failure(&mut self, message: impl AsRef<str>) -> Result<(), Error> {
-        self.diagnostics.push(&self.prefix, message);
-        self.fail_early()
+    /// Returns an error if the level is above the accumulator's `fail_fast_above`.
+    #[deprecated(note = "use `Self::diagnose` with Level::Error")]
+    pub fn add_failure(&mut self, message: impl AsRef<str>) -> Result<(), DiagnosticError> {
+        self.diagnose(Level::Error, message)
     }
 
     /// Accumulate an extra failure at the given key.
     ///
-    /// Returns an error if this accumulator is not exhaustive.
+    /// Returns an error if the level is above the accumulator's `fail_fast_above`.
+    #[deprecated(note = "use `Self::diagnose_at` with Level::Error")]
     pub fn add_failure_at(
         &mut self,
         prefix: impl Into<Key>,
         message: impl AsRef<str>,
-    ) -> Result<(), Error> {
-        self.with_key(prefix, |a| a.add_failure(message))
+    ) -> Result<(), DiagnosticError> {
+        self.with_key(prefix, |a| a.diagnose(Level::Error, message))
     }
 
     /// Accumulate any validation errors for a [Validate] field with key `field`.
@@ -105,7 +154,7 @@ impl Accumulator {
         &mut self,
         field: impl Into<Key>,
         member: &impl Validate,
-    ) -> Result<(), Error> {
+    ) -> Result<(), DiagnosticError> {
         self.with_key(field, |a| member.validate_inner(a))
     }
 
@@ -117,27 +166,25 @@ impl Accumulator {
     pub fn with_key(
         &mut self,
         prefix: impl Into<Key>,
-        f: impl FnOnce(&mut Self) -> Result<(), Error>,
-    ) -> Result<(), Error> {
+        f: impl FnOnce(&mut Self) -> Result<(), DiagnosticError>,
+    ) -> Result<(), DiagnosticError> {
         self.prefix.push(prefix.into());
         let res = f(self);
         self.prefix.pop();
-        res?;
-        self.fail_early()
+        res
     }
 
     /// Convenience method for [Accumulator::with_key]-like behaviour at multiple keys' depth.
     pub fn with_keys(
         &mut self,
         prefixes: &[Key],
-        f: impl FnOnce(&mut Self) -> Result<(), Error>,
-    ) -> Result<(), Error> {
+        f: impl FnOnce(&mut Self) -> Result<(), DiagnosticError>,
+    ) -> Result<(), DiagnosticError> {
         let len = prefixes.len();
         self.prefix.extend_from_slice(prefixes);
         let res = f(self);
         self.prefix.truncate(self.prefix.len() - len);
-        res?;
-        self.fail_early()
+        res
     }
 
     /// Iterate over a collection of [Validate]-able items,
@@ -147,7 +194,7 @@ impl Accumulator {
     pub fn validate_iter<'a, V: Validate + 'a, I: IntoIterator<Item = &'a V>>(
         &mut self,
         items: I,
-    ) -> Result<(), Error> {
+    ) -> Result<(), DiagnosticError> {
         for (idx, item) in items.into_iter().enumerate() {
             self.validate_member_at(idx, item)?;
         }
@@ -159,7 +206,7 @@ impl Accumulator {
         &mut self,
         prefix: impl Into<Key>,
         items: I,
-    ) -> Result<(), Error> {
+    ) -> Result<(), DiagnosticError> {
         self.with_key(prefix, |a| a.validate_iter(items))
     }
 
@@ -171,5 +218,11 @@ impl Accumulator {
     /// Whether this accumulator has 0 failures.
     pub fn is_empty(&self) -> bool {
         self.diagnostics.is_empty()
+    }
+}
+
+impl From<Accumulator> for crate::DiagnosticResult {
+    fn from(accum: Accumulator) -> Self {
+        accum.diagnostics.result_for_level(accum.levels.raise_above)
     }
 }
