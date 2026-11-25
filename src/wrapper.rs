@@ -66,6 +66,12 @@ impl<T> Borrow<T> for Valid<T> {
 impl<T: Validate> Valid<T> {
     /// Validate the inner value and return the wrapped form.
     pub fn try_new(inner: T) -> crate::Result<Self> {
+        inner.validate_fast()?;
+        Ok(Self(inner))
+    }
+
+    /// Validate the inner value and return the wrapped form.
+    pub fn try_new_exhaustive(inner: T) -> crate::Result<Self> {
         inner.validate()?;
         Ok(Self(inner))
     }
