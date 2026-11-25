@@ -1,6 +1,6 @@
 use std::{borrow::Borrow, ops::Deref};
 
-use crate::{Validate, ValidateContext};
+use crate::Validate;
 
 /// Wrapper type containing a value which must have been validated.
 #[derive(Debug)]
@@ -73,13 +73,6 @@ impl<T: Validate> Valid<T> {
     /// Validate the inner value and return the wrapped form.
     pub fn try_new(inner: T) -> crate::Result<Self> {
         inner.validate()?;
-        Ok(Self(inner))
-    }
-}
-
-impl<T: ValidateContext> Valid<T> {
-    pub fn try_new_ctx(inner: T, context: &T::Context) -> crate::Result<Self> {
-        inner.validate_ctx(context)?;
         Ok(Self(inner))
     }
 }

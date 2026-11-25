@@ -1,4 +1,4 @@
-use crate::errors::{Accumulator, Error};
+use crate::{accum::Accumulator, errors::Error};
 
 /// Trait for synchronous validation.
 pub trait Validate {
@@ -36,36 +36,9 @@ pub trait Validate {
     fn validate_inner(&self, accum: &mut Accumulator) -> Result<(), Error>;
 }
 
-/// Trait for synchronous validation where some external data or context is required.
-pub trait ValidateContext {
-    /// Type of context which the validator needs (external data, resources etc.)
-    type Context;
-
-    /// Perform top-level validation on this value, with the given context.
-    ///
-    /// Should not be called inside other validators;
-    /// use [ValidateContext::validate_inner] instead.
-    /// Should not be overridden by implementors.
-    fn validate_ctx(&self, context: &Self::Context) -> crate::Result {
-        let mut accum = Accumulator::new();
-        let _ = self.validate_inner_ctx(&mut accum, context);
-        accum.into()
-    }
-
-    /// Accumulate validation errors.
-    ///
-    /// Validators of containing types should call this;
-    /// end users probably want [ValidateContext::validate] instead.
-    fn validate_inner_ctx(
-        &self,
-        accum: &mut Accumulator,
-        context: &Self::Context,
-    ) -> Result<(), Error>;
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{Validate, ValidateContext};
+    use super::Validate;
 
     use crate::*;
 
@@ -75,7 +48,7 @@ mod tests {
     }
 
     impl Validate for A {
-        fn validate_inner(&self, accum: &mut errors::Accumulator) -> Result<(), Error> {
+        fn validate_inner(&self, accum: &mut accum::Accumulator) -> Result<(), Error> {
             if self.avalue % 2 != 0 {
                 accum.add_failure_at("avalue", "value is odd")?;
             }
@@ -90,7 +63,7 @@ mod tests {
     }
 
     impl Validate for B {
-        fn validate_inner(&self, accum: &mut errors::Accumulator) -> Result<(), Error> {
+        fn validate_inner(&self, accum: &mut accum::Accumulator) -> Result<(), Error> {
             if self.bvalue % 2 != 0 {
                 accum.add_failure_at("bvalue", "value is odd")?;
             }
@@ -104,7 +77,7 @@ mod tests {
     }
 
     impl Validate for C {
-        fn validate_inner(&self, accum: &mut errors::Accumulator) -> Result<(), Error> {
+        fn validate_inner(&self, accum: &mut accum::Accumulator) -> Result<(), Error> {
             if self.cvalue % 2 != 0 {
                 accum.add_failure_at("cvalue", "value is odd")?;
             }
@@ -135,41 +108,5 @@ mod tests {
         };
         let err = valid.validate().unwrap_err();
         println!("{err}");
-    }
-
-    struct DContext {
-        threshold: u8,
-    }
-
-    struct D(Vec<u8>);
-
-    impl ValidateContext for D {
-        type Context = DContext;
-
-        fn validate_inner_ctx(
-            &self,
-            accum: &mut errors::Accumulator,
-            context: &Self::Context,
-        ) -> Result<(), Error> {
-            for (i, v) in self.0.iter().enumerate() {
-                if *v > context.threshold {
-                    accum.add_failure_at(
-                        i,
-                        format!("value {v} exceeds threshold {}", context.threshold),
-                    )?;
-                }
-            }
-            Ok(())
-        }
-    }
-
-    #[test]
-    fn valid_ctx() {
-        let ctx = DContext { threshold: 3 };
-        let d_valid = D(vec![0, 1, 2]);
-        assert!(d_valid.validate_ctx(&ctx).is_ok());
-
-        let d_invalid = D(vec![0, 1, 4]);
-        assert!(d_invalid.validate_ctx(&ctx).is_err());
     }
 }
