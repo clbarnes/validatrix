@@ -77,42 +77,71 @@ pub struct Diagnostic<'a> {
 
 impl Display for DiagnosticPath<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        fmt_jsonpointer(self.path, f)
+        for k in self.path.iter() {
+            fmt_key_jsonpointer(k, f)?;
+        }
+        Ok(())
     }
 }
 
 #[allow(unused)]
 fn fmt_jsonpath(path: &[Key], f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     f.write_char('$')?;
-    for c in path.iter() {
-        match c {
-            Key::Index(n) => f.write_fmt(format_args!("[{n}]"))?,
-            Key::Field(s) => {
-                f.write_char('.')?;
-                f.write_str(s)?;
-            }
-        }
+    for k in path.iter() {
+        fmt_key_jsonpath(k, f)?;
     }
     Ok(())
 }
 
-fn fmt_jsonpointer(path: &[Key], f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    for c in path.iter() {
-        f.write_char('/')?;
-        match c {
-            Key::Index(n) => f.write_fmt(format_args!("{n}"))?,
-            Key::Field(s) => {
+fn fmt_key_jsonpointer(key: &Key, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    f.write_char('/')?;
+    match key {
+        Key::Index(n) => f.write_fmt(format_args!("{n}")),
+        Key::Field(s) => {
+            for c in s.chars() {
+                match c {
+                    '~' => f.write_str("~0")?,
+                    '/' => f.write_str("~1")?,
+                    _ => f.write_char(c)?,
+                }
+            }
+            Ok(())
+        }
+    }
+}
+
+fn fmt_key_jsonpath(key: &Key, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    match key {
+        Key::Index(n) => f.write_fmt(format_args!("[{n}]")),
+        Key::Field(s) => {
+            if is_jsonpath_shorthand(s) {
+                f.write_char('.')?;
+                f.write_str(s)
+            } else {
+                f.write_str("['")?;
                 for c in s.chars() {
                     match c {
-                        '~' => f.write_str("~0")?,
-                        '/' => f.write_str("~1")?,
+                        '\'' => f.write_str("\\'")?,
+                        '\\' => f.write_str("\\\\")?,
                         _ => f.write_char(c)?,
                     }
                 }
+                f.write_str("']")
             }
         }
     }
-    Ok(())
+}
+
+/// Whether a field name can use the dot shorthand (`.name`) in JSONPath,
+/// i.e. it is non-empty, contains only ASCII alphanumerics/underscores,
+/// and does not start with a digit.
+fn is_jsonpath_shorthand(s: &str) -> bool {
+    let mut chars = s.chars();
+    match chars.next() {
+        Some(c) if c.is_alphabetic() || c == '_' => {}
+        _ => return false,
+    }
+    chars.all(|c| c.is_alphanumeric() || c == '_')
 }
 
 impl Display for Diagnostic<'_> {
