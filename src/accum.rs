@@ -31,6 +31,8 @@ use crate::{
 /// When diagnostics are added, they can be either ignored, collected, or cause an immediate error depending on the [Policy].
 /// Accumulator methods should always propagate errors with `?`,
 /// as those errors are only raised when the policy demands early termination.
+///
+/// Messages are formatted into a shared buffer with [std::fmt::Display]; if you can't use a `&str` message, prefer [format_args] rather than [format] to save the allocation.
 #[derive(Debug)]
 pub struct Accumulator {
     /// This prefix is applied to any failures added to the accumulator.

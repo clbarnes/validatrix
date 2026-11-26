@@ -22,7 +22,7 @@ impl<T> Default for SharedBuf<T> {
 
 impl SharedBuf<u8> {
     pub fn push_fmt(&mut self, item: impl std::fmt::Display) {
-        self.data.write_fmt(format_args!("{item}")).unwrap();
+        write!(self.data, "{item}").unwrap();
         self.ends.push(self.data.len());
     }
 }
