@@ -1,8 +1,12 @@
 use std::{borrow::Borrow, ops::Deref};
 
-use crate::{Validate, ValidateContext};
+use crate::{accum::Policy, Diagnostics, Validate};
 
-/// Wrapper type containing a value which must have been validated.
+/// Newtype over a value which has passed validation;
+/// the inner value can be lent out immutably.
+///
+/// Can also be transparently serialized and deserialized with serde, if the feature is enabled.
+/// Deserialize-time validation uses [Policy::FAST].
 #[derive(Debug)]
 pub struct Valid<T>(T);
 
@@ -25,17 +29,17 @@ impl<'de, T: serde::de::Deserialize<'de> + Validate> serde::de::Deserialize<'de>
         D: serde::Deserializer<'de>,
     {
         let value = T::deserialize(deserializer)?;
-        Self::try_new(value).map_err(serde::de::Error::custom)
+        Self::with_policy(value, Policy::FAST).map_err(serde::de::Error::custom)
     }
 }
 
 impl<T> Valid<T> {
-    /// Borrow a reference to the contained valid value.
+    /// The validated value.
     pub fn inner(&self) -> &T {
         &self.0
     }
 
-    /// Unwrap into the contained value.
+    /// Unwrap the validated value.
     pub fn into_inner(self) -> T {
         self.0
     }
@@ -61,26 +65,50 @@ impl<T> Borrow<T> for Valid<T> {
     }
 }
 
-// N.B. can't use TryFrom because of the blanket implementation of TryFrom for From;
-// too generic.
 impl<T: Validate> Valid<T> {
-    /// Validate the inner value and return the wrapped form.
-    pub fn try_new(inner: T) -> crate::Result<Self> {
-        inner.validate()?;
+    /// Validate with the given policy.
+    pub fn with_policy(inner: T, policy: Policy) -> Result<Self, crate::DiagnosticError> {
+        inner.validate_policy(policy)?;
         Ok(Self(inner))
+    }
+
+    /// Validate with the default policy.
+    pub fn try_new(inner: T) -> Result<Self, crate::DiagnosticError> {
+        Self::with_policy(inner, Default::default())
     }
 }
 
-impl<T: ValidateContext> Valid<T> {
-    pub fn try_new_ctx(inner: T, context: &T::Context) -> crate::Result<Self> {
-        inner.validate_ctx(context)?;
-        Ok(Self(inner))
+/// Validates values with a fixed [Policy].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Validator {
+    policy: Policy,
+}
+
+impl From<Policy> for Validator {
+    fn from(policy: Policy) -> Self {
+        Self { policy }
+    }
+}
+
+impl Validator {
+    /// Create a validator using the given policy.
+    pub fn new(policy: Policy) -> Self {
+        Self { policy }
+    }
+
+    /// Validate a value, also returning any non-fatal diagnostics.
+    pub fn validate<T: Validate>(
+        &self,
+        value: T,
+    ) -> Result<(Valid<T>, Diagnostics), crate::DiagnosticError> {
+        let diag = value.validate_policy(self.policy)?;
+        Ok((Valid(value), diag))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{Valid, Validate};
+    use crate::{Level, Valid, Validate};
 
     #[derive(Debug, serde::Serialize, serde::Deserialize)]
     struct MyStruct {
@@ -88,10 +116,14 @@ mod tests {
     }
 
     impl Validate for MyStruct {
-        fn validate_inner(&self, accum: &mut crate::Accumulator) {
+        fn validate_inner(
+            &self,
+            accum: &mut crate::Accumulator,
+        ) -> Result<(), crate::DiagnosticError> {
             if !self.is_valid {
-                accum.add_failure_at("is_valid", "struct marked invalid");
+                accum.diagnose_at("is_valid", Level::Error, "struct marked invalid")?;
             }
+            Ok(())
         }
     }
 

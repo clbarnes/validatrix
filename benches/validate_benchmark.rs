@@ -2,7 +2,7 @@ use criterion::{criterion_group, criterion_main, Criterion};
 use rand::{rngs::SmallRng, SeedableRng};
 use serde::{Deserialize, Serialize};
 use std::hint::black_box;
-use validatrix::Validate;
+use validatrix::{Policy, Validate};
 
 #[derive(Debug, Serialize, Deserialize)]
 struct MyStruct {
@@ -27,11 +27,14 @@ impl MyStruct {
 }
 
 impl Validate for MyStruct {
-    fn validate_inner(&self, accum: &mut validatrix::Accumulator) {
+    fn validate_inner(
+        &self,
+        accum: &mut validatrix::Accumulator,
+    ) -> Result<(), validatrix::DiagnosticError> {
         if !self.is_valid {
-            accum.with_key("is_valid", |a| a.add_failure("not valid"));
+            accum.with_key("is_valid", |a| a.diagnose(Default::default(), "not valid"))?;
         }
-        accum.with_key("children", |a| a.validate_iter(&self.children));
+        accum.with_key("children", |a| a.validate_iter(&self.children))
     }
 }
 
@@ -93,5 +96,22 @@ fn validate_benchmark(c: &mut Criterion) {
     });
 }
 
-criterion_group!(benches, ser_benchmark, de_benchmark, validate_benchmark);
+/// Benchmark the validation process for a pretty large struct.
+/// More failures is slower, which is probably OK.
+fn validate_benchmark_failfast(c: &mut Criterion) {
+    let s = standard_struct();
+    c.bench_function("validate_fast", |b| {
+        b.iter(|| {
+            let _res = black_box(&s).validate_policy(Policy::FAST);
+        })
+    });
+}
+
+criterion_group!(
+    benches,
+    ser_benchmark,
+    de_benchmark,
+    validate_benchmark,
+    validate_benchmark_failfast
+);
 criterion_main!(benches);
