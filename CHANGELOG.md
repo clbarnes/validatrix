@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- [BREAKING] Fail-fast option on accumulator
+- Diagnostics at different levels
+- Consumer can filter diagnostics by level
+
+### Changed
+
+- Reduce allocations and increase performance
+- Re-export consumer-specific and implementor-specific utilities in separate modules
+
+### Removed
+
+- Async validation (validation was serialised anyway because of `&mut Accumulator`)
+- Contextual validation (just define a newtype including the context)
+
 ## [0.4.0] - 2026-02-19
 
 - Make `Key` public
