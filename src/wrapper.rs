@@ -2,7 +2,11 @@ use std::{borrow::Borrow, ops::Deref};
 
 use crate::{accum::Policy, Diagnostics, Validate};
 
-/// Wrapper type containing a value which must have been validated.
+/// Newtype over a value which has passed validation;
+/// the inner value can be lent out immutably.
+///
+/// Can also be transparently serialized and deserialized with serde, if the feature is enabled.
+/// Deserialize-time validation uses [Policy::FAST].
 #[derive(Debug)]
 pub struct Valid<T>(T);
 
@@ -30,12 +34,12 @@ impl<'de, T: serde::de::Deserialize<'de> + Validate> serde::de::Deserialize<'de>
 }
 
 impl<T> Valid<T> {
-    /// Borrow a reference to the contained valid value.
+    /// The validated value.
     pub fn inner(&self) -> &T {
         &self.0
     }
 
-    /// Unwrap into the contained value.
+    /// Unwrap the validated value.
     pub fn into_inner(self) -> T {
         self.0
     }
@@ -62,19 +66,19 @@ impl<T> Borrow<T> for Valid<T> {
 }
 
 impl<T: Validate> Valid<T> {
+    /// Validate with the given policy.
     pub fn with_policy(inner: T, policy: Policy) -> Result<Self, crate::DiagnosticError> {
         inner.validate_policy(policy)?;
         Ok(Self(inner))
     }
 
-    /// Validate the inner value and return the wrapped form.
+    /// Validate with the default policy.
     pub fn try_new(inner: T) -> Result<Self, crate::DiagnosticError> {
-        inner.validate_policy(Default::default())?;
-        Ok(Self(inner))
+        Self::with_policy(inner, Default::default())
     }
 }
 
-/// Factory which produces [Valid]-wrapped instances with consistent validation policies.
+/// Validates values with a fixed [Policy].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Validator {
     policy: Policy,
@@ -87,10 +91,12 @@ impl From<Policy> for Validator {
 }
 
 impl Validator {
+    /// Create a validator using the given policy.
     pub fn new(policy: Policy) -> Self {
         Self { policy }
     }
 
+    /// Validate a value, also returning any non-fatal diagnostics.
     pub fn validate<T: Validate>(
         &self,
         value: T,

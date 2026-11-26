@@ -5,19 +5,28 @@ use crate::{
     Key,
 };
 
+/// Severity of a [Diagnostic], from least to most severe.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub enum Level {
+    /// Informational; not a problem.
     Info,
+    /// Possible problem; the value is still usable.
+    /// Deprecations should be at this level.
     Warning,
+    /// The value is invalid.
     #[default]
     Error,
+    /// The value is invalid and validation should not continue.
     Critical,
 }
 
 impl Level {
+    /// Least severe level.
     pub const MIN: Self = Self::Info;
+    /// Most severe level.
     pub const MAX: Self = Self::Critical;
 
+    /// Upper-case name, e.g. `"ERROR"`.
     pub fn as_str(&self) -> &'static str {
         match self {
             Level::Info => "INFO",
@@ -34,6 +43,7 @@ impl Display for Level {
     }
 }
 
+/// Collection of [Diagnostic]s produced by validation.
 #[derive(Debug, Clone, Default)]
 pub struct Diagnostics {
     levels: Vec<Level>,
@@ -42,29 +52,32 @@ pub struct Diagnostics {
 }
 
 impl Diagnostics {
+    /// Number of diagnostics.
     pub fn len(&self) -> usize {
         self.paths.len()
     }
 
+    /// Whether there are no diagnostics.
     pub fn is_empty(&self) -> bool {
         self.paths.is_empty()
     }
 
     pub(crate) fn result_for_level(self, level: Level) -> crate::DiagnosticResult {
-        if self.levels.iter().any(|&l| l > level) {
+        if self.levels.iter().any(|&l| l >= level) {
             Err(crate::DiagnosticError(self))
         } else {
             Ok(self)
         }
     }
 
+    /// Add a diagnostic at `prefix` followed by `path`.
     #[allow(unused)]
     pub fn push_prefix(
         &mut self,
         prefix: &[Key],
         path: &[Key],
         level: Level,
-        message: impl AsRef<str>,
+        message: impl std::fmt::Display,
     ) {
         self.levels.push(level);
         self.paths
@@ -72,12 +85,14 @@ impl Diagnostics {
         self.messages.push(message);
     }
 
-    pub fn push(&mut self, path: &[Key], level: Level, message: impl AsRef<str>) {
+    /// Add a diagnostic.
+    pub fn push(&mut self, path: &[Key], level: Level, message: impl std::fmt::Display) {
         self.levels.push(level);
         self.paths.push(path.iter().copied());
         self.messages.push(message);
     }
 
+    /// Iterate over diagnostics in the order they were added.
     pub fn iter(&self) -> DiagnosticIter<'_> {
         DiagnosticIter {
             level_iter: self.levels.iter(),
@@ -87,6 +102,7 @@ impl Diagnostics {
     }
 }
 
+/// Iterator over [Diagnostics].
 pub struct DiagnosticIter<'a> {
     level_iter: std::slice::Iter<'a, Level>,
     path_iter: SharedBufIter<'a, Key>,
@@ -107,6 +123,7 @@ impl<'a> Iterator for DiagnosticIter<'a> {
     }
 }
 
+/// Location of a [Diagnostic]; displayed as a JSONPath, e.g. `$.items[0].name`.
 #[derive(Debug, Clone, Copy, PartialOrd, Ord, PartialEq, Eq)]
 pub struct DiagnosticPath<'a> {
     path: &'a [Key],
@@ -118,10 +135,14 @@ impl<'a> From<&'a [Key]> for DiagnosticPath<'a> {
     }
 }
 
+/// A single validation message.
 #[derive(Debug, Clone, Copy, PartialOrd, Ord, PartialEq, Eq)]
 pub struct Diagnostic<'a> {
+    /// Severity.
     pub level: Level,
+    /// Location of the value the message refers to.
     pub path: DiagnosticPath<'a>,
+    /// Human-readable description.
     pub message: &'a str,
 }
 

@@ -12,10 +12,12 @@ pub(crate) mod diagnostics;
 pub use diagnostics::{Diagnostic, Diagnostics, Level};
 pub(crate) mod sharedbuf;
 
-pub mod consumer {
+/// Convenience module re-exporting items needed to validate values.
+pub mod consume {
     pub use super::{Level, Policy, Valid, Validate, Validator};
 }
 
-pub mod implementor {
+/// Convenience module re-exporting items needed to implement [Validate].
+pub mod implement {
     pub use super::{Accumulator, DiagnosticError, Level, Validate};
 }

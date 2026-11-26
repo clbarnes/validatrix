@@ -3,35 +3,33 @@ use crate::{
     errors::DiagnosticError,
 };
 
-/// Trait for synchronous validation.
+/// A type which can be validated.
 pub trait Validate {
-    /// Perform top-level validation on this value.
+    /// Validate with the default [Policy].
     ///
-    /// Should not be called inside other validators;
-    /// use [Validate::validate_inner] instead.
-    /// Should not be overridden by implementors.
+    /// This should be used by consumers and not overridden by implementors
+    /// (implementors should use [Validate::validate_inner]).
     fn validate(&self) -> crate::DiagnosticResult {
         self.validate_policy(Default::default())
     }
 
-    /// Perform top-level validation on this value, failing at the first invalid item.
+    /// Validate with the given [Policy].
     ///
-    /// Should not be called inside other validators;
-    /// use [Validate::validate_inner] instead.
-    /// Should not be overridden by implementors.
+    /// This should be used by consumers and not overridden by implementors
+    /// (implementors should use [Validate::validate_inner]).
     fn validate_policy(&self, policy: Policy) -> crate::DiagnosticResult {
         let mut accum = Accumulator::with_policy(policy);
         self.validate_inner(&mut accum)?;
         accum.into()
     }
 
-    /// Accumulate validation errors.
+    /// Record diagnostics for this value.
     ///
-    /// Validators of containing types should call this;
-    /// end users probably want [Validate::validate] instead.
+    /// Propagate errors from [Accumulator] methods with `?`;
+    /// this will obey the accumulator's [Policy].
     ///
-    /// Should return an error (generally by `?`-propagating the results of [Accumulator] methods)
-    /// as soon as the accumulator reports one, i.e. when it is not exhaustive.
+    /// Consumers wanting to validate types defined elsewhere should not call this method:
+    /// use [Self::validate_policy] instead.
     fn validate_inner(&self, accum: &mut Accumulator) -> Result<(), DiagnosticError>;
 }
 

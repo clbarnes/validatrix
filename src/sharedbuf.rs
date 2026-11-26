@@ -1,4 +1,4 @@
-use std::ops::Index;
+use std::{io::Write, ops::Index};
 
 /// A buffer of items, where each item is a slice of the underlying data.
 ///
@@ -17,6 +17,13 @@ impl<T> Default for SharedBuf<T> {
             data: Vec::new(),
             ends: Vec::new(),
         }
+    }
+}
+
+impl SharedBuf<u8> {
+    pub fn push_fmt(&mut self, item: impl std::fmt::Display) {
+        self.data.write_fmt(format_args!("{item}")).unwrap();
+        self.ends.push(self.data.len());
     }
 }
 
@@ -128,12 +135,12 @@ pub struct SharedStringBuf {
 }
 
 impl SharedStringBuf {
-    pub fn push(&mut self, item: impl AsRef<str>) {
-        self.buf.push(item.as_ref().bytes());
+    pub fn push(&mut self, item: impl std::fmt::Display) {
+        self.buf.push_fmt(item);
     }
 
     #[allow(unused)]
-    pub fn extend(&mut self, items: impl IntoIterator<Item = impl AsRef<str>>) {
+    pub fn extend(&mut self, items: impl IntoIterator<Item = impl std::fmt::Display>) {
         for item in items {
             self.push(item);
         }
