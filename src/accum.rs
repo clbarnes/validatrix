@@ -255,3 +255,208 @@ impl From<Accumulator> for crate::DiagnosticResult {
         accum.diagnostics.result_for_level(accum.policy.fail)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const LEVELS: [Level; 4] = [Level::Info, Level::Warning, Level::Error, Level::Critical];
+
+    /// What happened to a single diagnostic.
+    #[derive(Debug, PartialEq, Eq)]
+    struct Outcome {
+        collected: bool,
+        failed: bool,
+        aborted: bool,
+    }
+
+    /// Run one diagnostic at `level` through the full validate path.
+    fn outcome(policy: Policy, level: Level) -> Outcome {
+        struct One(Level);
+        impl Validate for One {
+            fn validate_inner(&self, accum: &mut Accumulator) -> Result<(), DiagnosticError> {
+                accum.diagnose(self.0, "msg")
+            }
+        }
+
+        let mut accum = Accumulator::with_policy(policy);
+        let aborted = accum.diagnose(level, "msg").is_err();
+        let collected = aborted || accum.len() == 1;
+        let failed = One(level).validate_policy(policy).is_err();
+        Outcome {
+            collected,
+            failed,
+            aborted,
+        }
+    }
+
+    fn levels_of(diags: &Diagnostics) -> Vec<Level> {
+        diags.iter().map(|d| d.level).collect()
+    }
+
+    #[test]
+    fn default_policy() {
+        let p = Policy::DEFAULT;
+        let o = |c, f, a| Outcome {
+            collected: c,
+            failed: f,
+            aborted: a,
+        };
+        assert_eq!(outcome(p, Level::Info), o(false, false, false));
+        assert_eq!(outcome(p, Level::Warning), o(true, false, false));
+        assert_eq!(outcome(p, Level::Error), o(true, true, false));
+        assert_eq!(outcome(p, Level::Critical), o(true, true, true));
+    }
+
+    #[test]
+    fn fast_policy() {
+        let p = Policy::FAST;
+        let o = |c, f, a| Outcome {
+            collected: c,
+            failed: f,
+            aborted: a,
+        };
+        assert_eq!(outcome(p, Level::Info), o(false, false, false));
+        assert_eq!(outcome(p, Level::Warning), o(true, false, false));
+        assert_eq!(outcome(p, Level::Error), o(true, true, true));
+        assert_eq!(outcome(p, Level::Critical), o(true, true, true));
+    }
+
+    #[test]
+    fn quiet_policy() {
+        let p = Policy::QUIET;
+        let o = |c, f, a| Outcome {
+            collected: c,
+            failed: f,
+            aborted: a,
+        };
+        assert_eq!(outcome(p, Level::Info), o(false, false, false));
+        assert_eq!(outcome(p, Level::Warning), o(false, false, false));
+        assert_eq!(outcome(p, Level::Error), o(true, true, false));
+        assert_eq!(outcome(p, Level::Critical), o(true, true, true));
+    }
+
+    #[test]
+    fn detailed_policy() {
+        let p = Policy::DETAILED;
+        let o = |c, f, a| Outcome {
+            collected: c,
+            failed: f,
+            aborted: a,
+        };
+        assert_eq!(outcome(p, Level::Info), o(true, false, false));
+        assert_eq!(outcome(p, Level::Warning), o(true, false, false));
+        assert_eq!(outcome(p, Level::Error), o(true, true, false));
+        assert_eq!(outcome(p, Level::Critical), o(true, true, true));
+    }
+
+    #[test]
+    fn strict_policy() {
+        let p = Policy::STRICT;
+        let o = |c, f, a| Outcome {
+            collected: c,
+            failed: f,
+            aborted: a,
+        };
+        assert_eq!(outcome(p, Level::Info), o(true, false, false));
+        assert_eq!(outcome(p, Level::Warning), o(true, true, false));
+        assert_eq!(outcome(p, Level::Error), o(true, true, false));
+        assert_eq!(outcome(p, Level::Critical), o(true, true, true));
+    }
+
+    /// Every combination of thresholds and diagnostic levels.
+    /// A diagnostic below the collection threshold is ignored entirely,
+    /// even if it would otherwise fail or abort.
+    /// Aborting always fails validation, even if `abort` is below `fail`.
+    #[test]
+    fn all_thresholds() {
+        for collect in LEVELS {
+            for fail in LEVELS {
+                for abort in LEVELS {
+                    let policy = Policy::new(collect, fail, abort);
+                    for level in LEVELS {
+                        let collected = level >= collect;
+                        let aborted = collected && level >= abort;
+                        let expected = Outcome {
+                            collected,
+                            failed: aborted || (collected && level >= fail),
+                            aborted,
+                        };
+                        assert_eq!(
+                            outcome(policy, level),
+                            expected,
+                            "{policy:?} with {level:?}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn abort_returns_earlier_collected_diagnostics() {
+        let mut accum = Accumulator::with_policy(Policy::FAST);
+        accum.diagnose(Level::Info, "ignored").unwrap();
+        accum.diagnose(Level::Warning, "kept").unwrap();
+        let err = accum.diagnose(Level::Error, "abort").unwrap_err();
+        assert_eq!(levels_of(&err.0), [Level::Warning, Level::Error]);
+    }
+
+    #[test]
+    fn abort_skips_later_validation() {
+        struct Two;
+        impl Validate for Two {
+            fn validate_inner(&self, accum: &mut Accumulator) -> Result<(), DiagnosticError> {
+                accum.diagnose_at("a", Level::Error, "first")?;
+                accum.diagnose_at("b", Level::Error, "second")
+            }
+        }
+
+        let err = Two.validate_policy(Policy::FAST).unwrap_err();
+        assert_eq!(err.len(), 1);
+
+        let err = Two.validate_policy(Policy::DEFAULT).unwrap_err();
+        assert_eq!(err.len(), 2);
+    }
+
+    #[test]
+    fn success_returns_collected_diagnostics() {
+        struct Mixed;
+        impl Validate for Mixed {
+            fn validate_inner(&self, accum: &mut Accumulator) -> Result<(), DiagnosticError> {
+                accum.diagnose(Level::Info, "info")?;
+                accum.diagnose(Level::Warning, "warning")
+            }
+        }
+
+        let diags = Mixed.validate_policy(Policy::DEFAULT).unwrap();
+        assert_eq!(levels_of(&diags), [Level::Warning]);
+
+        let diags = Mixed.validate_policy(Policy::DETAILED).unwrap();
+        assert_eq!(levels_of(&diags), [Level::Info, Level::Warning]);
+
+        let err = Mixed.validate_policy(Policy::STRICT).unwrap_err();
+        assert_eq!(levels_of(&err.0), [Level::Info, Level::Warning]);
+    }
+
+    #[test]
+    fn for_level_matches_behaviour() {
+        for policy in [
+            Policy::DEFAULT,
+            Policy::FAST,
+            Policy::QUIET,
+            Policy::DETAILED,
+            Policy::STRICT,
+        ] {
+            for level in LEVELS {
+                let (c, f, a) = policy.for_level(level);
+                let o = outcome(policy, level);
+                assert_eq!(
+                    (c, c && f, c && a),
+                    (o.collected, o.failed, o.aborted),
+                    "{policy:?} with {level:?}"
+                );
+            }
+        }
+    }
+}
